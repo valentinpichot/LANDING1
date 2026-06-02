@@ -18,6 +18,13 @@ const processCardsWrapper = ref<HTMLElement | null>(null);
 const gallerySection = ref<HTMLElement | null>(null);
 const galleryImages = ref<HTMLElement[]>([]);
 const contactSection = ref<HTMLElement | null>(null);
+
+const galleryData = [
+  { id: 1015, title: 'Identité Visuelle', category: 'Branding', year: '2026', w: 800, h: 1200 },
+  { id: 1016, title: 'Interface Digitale', category: 'UI/UX', year: '2025', w: 1000, h: 700 },
+  { id: 1025, title: 'Direction Artistique', category: 'Editorial', year: '2026', w: 1000, h: 700 },
+  { id: 1032, title: 'Motion Design', category: 'Animation', year: '2025', w: 800, h: 1200 },
+];
 const navbar = ref<HTMLElement | null>(null);
 
 let ctx: gsap.Context;
@@ -156,18 +163,16 @@ onMounted(() => {
       });
     }
 
-    // 3. Reveal Gallery: Staggered batch reveal
+    // 3. Reveal Gallery: Curtain wipe reveal
     if (galleryImages.value.length > 0) {
       ScrollTrigger.batch(galleryImages.value, {
         onEnter: (elements) => {
           gsap.fromTo(elements,
-            { clipPath: "circle(0% at 50% 50%)", opacity: 0, scale: 0.9 },
+            { clipPath: "inset(100% 0% 0% 0% round 12px)" },
             {
-              clipPath: "circle(100% at 50% 50%)",
-              opacity: 1,
-              scale: 1,
-              duration: 1.8, // Slower duration
-              stagger: 0.4, // Increased delay per image
+              clipPath: "inset(0% 0% 0% 0% round 12px)",
+              duration: 1.4,
+              stagger: 0.18,
               ease: "power3.out",
               overwrite: true
             }
@@ -295,10 +300,42 @@ onUnmounted(() => {
 
     <!-- GALLERY SECTION -->
     <section ref="gallerySection" class="gallery" id="gallery">
-      <h2 class="reveal-text">Galerie Immersive</h2>
+      <div class="gallery__header">
+        <div class="gallery__header-left">
+          <span class="gallery__eyebrow">— Réalisations</span>
+          <h2 class="reveal-text">Galerie <em>Immersive</em></h2>
+        </div>
+        <div class="gallery__header-right">
+          <span class="gallery__count reveal-text">{{ galleryData.length }} projets</span>
+          <a href="#" class="gallery__view-all reveal-text">Voir tout <span class="arrow">↗</span></a>
+        </div>
+      </div>
+
       <div class="gallery__grid">
-        <div class="gallery__item" v-for="img in [1015, 1016, 1025, 1032]" :key="img" ref="galleryImages">
-          <img :src="`https://picsum.photos/id/${img}/800/1000`" :alt="`Gallery image ${img}`" loading="lazy" />
+        <div
+          v-for="(item, index) in galleryData"
+          :key="item.id"
+          class="gallery__item"
+          :class="`gallery__item--${index}`"
+          ref="galleryImages"
+        >
+          <div class="gallery__item-inner">
+            <img
+              :src="`https://picsum.photos/id/${item.id}/${item.w}/${item.h}`"
+              :alt="item.title"
+              loading="lazy"
+            />
+            <div class="gallery__overlay">
+              <div class="gallery__overlay-content">
+                <span class="gallery__category">{{ item.category }}</span>
+                <div class="gallery__meta">
+                  <h3 class="gallery__item-title">{{ item.title }}</h3>
+                  <span class="gallery__year">{{ item.year }}</span>
+                </div>
+              </div>
+            </div>
+            <span class="gallery__index">0{{ index + 1 }}</span>
+          </div>
         </div>
       </div>
     </section>
@@ -825,45 +862,250 @@ html.lenis {
    ========================================================================= */
 .gallery {
   padding: var(--section-padding);
+  padding-bottom: 10vh;
   background-color: var(--color-bg);
 
+  &__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-bottom: clamp(2rem, 5vh, 4rem);
+    padding-bottom: 1.75rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+
+    @media (max-width: 640px) {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 1.5rem;
+    }
+  }
+
+  &__header-left {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  &__eyebrow {
+    display: block;
+    font-size: 0.75rem;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--color-accent);
+    font-weight: 500;
+  }
+
   h2 {
-    font-size: clamp(2.5rem, 5vw, 4rem);
-    font-weight: 700;
-    margin-bottom: 4rem;
-    text-align: center;
-    letter-spacing: -0.02em;
+    font-size: clamp(2.5rem, 5vw, 4.5rem);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1;
+
+    em {
+      font-style: italic;
+      font-weight: 300;
+      background: var(--color-accent-gradient);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+  }
+
+  &__header-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.75rem;
+
+    @media (max-width: 640px) {
+      align-items: flex-start;
+    }
+  }
+
+  &__count {
+    font-size: 0.7rem;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.25);
+  }
+
+  &__view-all {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.82rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.4);
+    text-decoration: none;
+    transition: color 0.3s ease;
+
+    .arrow {
+      display: inline-block;
+      transition: transform 0.3s ease;
+    }
+
+    &:hover {
+      color: var(--color-accent);
+
+      .arrow {
+        transform: translate(3px, -3px);
+      }
+    }
   }
 
   &__grid {
     display: grid;
-    /* Responsive Grid */
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 2rem;
+    grid-template-columns: 1.3fr 0.95fr 1.2fr;
+    grid-template-rows: 38vh 38vh;
+    gap: 1rem;
+
+    @media (max-width: 992px) {
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: auto;
+    }
+
+    @media (max-width: 640px) {
+      grid-template-columns: 1fr;
+    }
   }
 
   &__item {
-    width: 100%;
-    aspect-ratio: 3/4;
-    overflow: hidden;
-    border-radius: 16px;
-    background-color: #111;
-    /* Initial state for GSAP */
-    clip-path: circle(0% at 50% 50%);
+    background-color: #0e0e0e;
+    clip-path: inset(100% 0% 0% 0% round 12px);
     will-change: clip-path;
+
+    &--0 {
+      grid-column: 1;
+      grid-row: 1 / 3;
+    }
+
+    &--1 {
+      grid-column: 2;
+      grid-row: 1;
+    }
+
+    &--2 {
+      grid-column: 2;
+      grid-row: 2;
+    }
+
+    &--3 {
+      grid-column: 3;
+      grid-row: 1 / 3;
+    }
+
+    @media (max-width: 992px) {
+      &--0, &--1, &--2, &--3 {
+        grid-column: auto;
+        grid-row: auto;
+        aspect-ratio: 3 / 4;
+      }
+    }
+  }
+
+  &__item-inner {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    border-radius: 12px;
+    cursor: pointer;
 
     img {
       width: 100%;
       height: 100%;
       object-fit: cover;
-      /* Subtle scale for depth */
-      transform: scale(1.05);
-      transition: transform var(--transition-smooth);
+      transform: scale(1.06);
+      transition: transform 0.9s cubic-bezier(0.25, 1, 0.5, 1);
+      display: block;
     }
 
     &:hover img {
-      transform: scale(1.1);
+      transform: scale(1.14);
     }
+
+    &:hover .gallery__overlay-content {
+      transform: translateY(0);
+      opacity: 1;
+    }
+
+    &:hover .gallery__index {
+      opacity: 0;
+    }
+  }
+
+  &__overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      to top,
+      rgba(0, 0, 0, 0.88) 0%,
+      rgba(0, 0, 0, 0.35) 45%,
+      transparent 72%
+    );
+    display: flex;
+    align-items: flex-end;
+    padding: 1.75rem;
+    z-index: 2;
+  }
+
+  &__overlay-content {
+    transform: translateY(6px);
+    opacity: 0.75;
+    transition: all 0.45s cubic-bezier(0.25, 1, 0.5, 1);
+    width: 100%;
+  }
+
+  &__category {
+    display: inline-block;
+    font-size: 0.62rem;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--color-accent);
+    font-weight: 600;
+    margin-bottom: 0.65rem;
+    padding: 0.3rem 0.75rem;
+    border: 1px solid rgba(0, 255, 204, 0.3);
+    border-radius: 100px;
+    backdrop-filter: blur(10px);
+    background: rgba(0, 255, 204, 0.06);
+  }
+
+  &__meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 0.5rem;
+  }
+
+  &__item-title {
+    font-size: clamp(0.95rem, 1.4vw, 1.35rem);
+    font-weight: 600;
+    color: #fff;
+    letter-spacing: -0.01em;
+    line-height: 1.2;
+  }
+
+  &__year {
+    font-size: 0.72rem;
+    color: rgba(255, 255, 255, 0.35);
+    letter-spacing: 0.1em;
+    font-weight: 500;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  &__index {
+    position: absolute;
+    top: 1.25rem;
+    right: 1.25rem;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    color: rgba(255, 255, 255, 0.35);
+    z-index: 3;
+    transition: opacity 0.35s ease;
   }
 }
 

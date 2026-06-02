@@ -1,10 +1,18 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { useI18n } from 'vue-i18n';
+import ContactForm from './components/ContactForm.vue';
 import gsap from 'gsap';
 import ScrollTrigger from 'gsap/ScrollTrigger';
 import Lenis from '@studio-freight/lenis';
 
 gsap.registerPlugin(ScrollTrigger);
+
+const { t, tm, locale } = useI18n();
+
+watch(locale, (val) => {
+  localStorage.setItem('locale', val as string);
+});
 
 const mainContainer = ref<HTMLElement | null>(null);
 const heroSection = ref<HTMLElement | null>(null);
@@ -20,15 +28,21 @@ const galleryImages = ref<HTMLElement[]>([]);
 const contactSection = ref<HTMLElement | null>(null);
 
 const galleryData = [
-  { id: 1015, title: 'Identité Visuelle', category: 'Branding', year: '2026', w: 800, h: 1200 },
-  { id: 1016, title: 'Interface Digitale', category: 'UI/UX', year: '2025', w: 1000, h: 700 },
-  { id: 1025, title: 'Direction Artistique', category: 'Editorial', year: '2026', w: 1000, h: 700 },
-  { id: 1032, title: 'Motion Design', category: 'Animation', year: '2025', w: 800, h: 1200 },
+  { id: 1015, year: '2025', w: 800, h: 1200 },
+  { id: 1016, year: '2024', w: 1000, h: 700 },
+  { id: 1025, year: '2026', w: 1000, h: 700 },
+  { id: 1032, year: '2025', w: 800, h: 1200 },
 ];
+
+const processSteps = computed(
+  () => tm('process.steps') as Array<{ title: string; description: string }>
+);
 const navbar = ref<HTMLElement | null>(null);
 
 let ctx: gsap.Context;
 let lenis: Lenis | null = null;
+
+const scrollTo = (target: string) => lenis?.scrollTo(target, { duration: 1 });
 
 onMounted(() => {
   // Initialize Lenis
@@ -224,17 +238,32 @@ onUnmounted(() => {
     <!-- NAVIGATION -->
     <nav ref="navbar" class="navbar">
       <div class="navbar__container">
-        <a href="#" class="navbar__logo">VISION PURE</a>
+        <a href="#" class="navbar__logo">
+          <span class="logo-dot"></span>
+          VISION PURE
+        </a>
 
         <div class="navbar__menu">
-          <a href="#process" class="nav-link" @click.prevent="lenis?.scrollTo('#process', { duration: 1 })">Approche</a>
-          <a href="#gallery" class="nav-link" @click.prevent="lenis?.scrollTo('#gallery', { duration: 1 })">Galerie</a>
-          <a href="#contact" class="nav-link" @click.prevent="lenis?.scrollTo('#contact', { duration: 1 })">Projet</a>
+          <a href="#process" class="nav-link" @click.prevent="scrollTo('#process')">{{ t('nav.approach') }}</a>
+          <a href="#gallery" class="nav-link" @click.prevent="scrollTo('#gallery')">{{ t('nav.gallery') }}</a>
+          <a href="#contact" class="nav-link" @click.prevent="scrollTo('#contact')">{{ t('nav.project') }}</a>
         </div>
 
-        <button class="navbar__cta" @click="lenis?.scrollTo('#contact', { duration: 1 })">
-          <span>Contact</span>
-        </button>
+        <div class="navbar__right">
+          <div class="lang-switcher">
+            <button
+              v-for="lang in ['fr', 'en', 'es']"
+              :key="lang"
+              class="lang-btn"
+              :class="{ 'lang-btn--active': locale === lang }"
+              @click="locale = lang"
+            >{{ lang.toUpperCase() }}</button>
+          </div>
+          <button class="navbar__cta" @click="scrollTo('#contact')">
+            <span class="cta-text">{{ t('nav.contact') }}</span>
+            <span class="cta-arrow">↗</span>
+          </button>
+        </div>
       </div>
     </nav>
 
@@ -253,30 +282,30 @@ onUnmounted(() => {
             <span class="char">P</span><span class="char">U</span><span class="char">R</span><span class="char">E</span>
           </span>
         </h1>
-        <p class="hero__subtitle">L'excellence visuelle, redéfinie.</p>
+        <p class="hero__subtitle">{{ t('hero.subtitle') }}</p>
 
         <div ref="heroBtns" class="hero__ctas">
           <button class="btn btn--primary">
-            <span>Lancer un projet</span>
+            <span>{{ t('hero.cta_primary') }}</span>
             <div class="btn-glow"></div>
           </button>
-          <button class="btn btn--secondary">Notre expertise</button>
+          <button class="btn btn--secondary">{{ t('hero.cta_secondary') }}</button>
         </div>
       </div>
 
       <!-- HERO INFO BAR -->
       <div class="hero__infobar">
         <div class="info-item">
-          <span class="label">Performance</span>
-          <span class="value">60FPS</span>
+          <span class="label">{{ t('hero.stat_clients_label') }}</span>
+          <span class="value">{{ t('hero.stat_clients_value') }}</span>
         </div>
         <div class="info-item">
-          <span class="label">Expérience</span>
-          <span class="value">IMMERSIVE</span>
+          <span class="label">{{ t('hero.stat_projects_label') }}</span>
+          <span class="value">{{ t('hero.stat_projects_value') }}</span>
         </div>
         <div class="info-item">
-          <span class="label">Animation</span>
-          <span class="value">GSAP 3</span>
+          <span class="label">{{ t('hero.stat_since_label') }}</span>
+          <span class="value">{{ t('hero.stat_since_value') }}</span>
         </div>
       </div>
     </section>
@@ -284,15 +313,14 @@ onUnmounted(() => {
     <!-- PROCESS SECTION -->
     <section ref="processSection" class="process" id="process">
       <div class="process__header">
-        <h2 class="reveal-text">L'Approche</h2>
+        <h2 class="reveal-text">{{ t('process.title') }}</h2>
       </div>
       <div ref="processCardsWrapper" class="process__cards">
-        <div class="process-card" v-for="i in 3" :key="i">
+        <div class="process-card" v-for="(step, i) in processSteps" :key="i">
           <div class="process-card__inner">
-            <span class="process-card__number">0{{ i }}</span>
-            <h3 class="reveal-text">{{ ['Conception', 'Expérience', 'Performance'][i - 1] }}</h3>
-            <p class="reveal-text">Découvrez notre maîtrise de l'esthétique et de la technologie pour sublimer chaque
-              détail de cette création digitale fluide et performante.</p>
+            <span class="process-card__number">0{{ i + 1 }}</span>
+            <h3 class="reveal-text">{{ step.title }}</h3>
+            <p class="reveal-text">{{ step.description }}</p>
           </div>
         </div>
       </div>
@@ -302,12 +330,12 @@ onUnmounted(() => {
     <section ref="gallerySection" class="gallery" id="gallery">
       <div class="gallery__header">
         <div class="gallery__header-left">
-          <span class="gallery__eyebrow">— Réalisations</span>
-          <h2 class="reveal-text">Galerie <em>Immersive</em></h2>
+          <span class="gallery__eyebrow">{{ t('gallery.eyebrow') }}</span>
+          <h2 class="reveal-text">{{ t('gallery.title_main') }} <em>{{ t('gallery.title_accent') }}</em></h2>
         </div>
         <div class="gallery__header-right">
-          <span class="gallery__count reveal-text">{{ galleryData.length }} projets</span>
-          <a href="#" class="gallery__view-all reveal-text">Voir tout <span class="arrow">↗</span></a>
+          <span class="gallery__count reveal-text">{{ t('gallery.count', { count: galleryData.length }) }}</span>
+          <a href="#" class="gallery__view-all reveal-text">{{ t('gallery.view_all') }} <span class="arrow">↗</span></a>
         </div>
       </div>
 
@@ -322,14 +350,14 @@ onUnmounted(() => {
           <div class="gallery__item-inner">
             <img
               :src="`https://picsum.photos/id/${item.id}/${item.w}/${item.h}`"
-              :alt="item.title"
+              :alt="t(`gallery.projects.${index}.title`)"
               loading="lazy"
             />
             <div class="gallery__overlay">
               <div class="gallery__overlay-content">
-                <span class="gallery__category">{{ item.category }}</span>
+                <span class="gallery__category">{{ t(`gallery.projects.${index}.category`) }}</span>
                 <div class="gallery__meta">
-                  <h3 class="gallery__item-title">{{ item.title }}</h3>
+                  <h3 class="gallery__item-title">{{ t(`gallery.projects.${index}.title`) }}</h3>
                   <span class="gallery__year">{{ item.year }}</span>
                 </div>
               </div>
@@ -344,50 +372,9 @@ onUnmounted(() => {
     <section ref="contactSection" class="contact" id="contact">
       <div class="contact__container">
         <div class="contact__header">
-          <h2 class="reveal-text">Parlons de votre projet</h2>
+          <h2 class="reveal-text">{{ t('contact.title') }}</h2>
         </div>
-
-        <div class="contact__layout">
-          <!-- Info Column -->
-          <div class="contact__info">
-            <div class="info-block">
-              <span class="info-label reveal-text">Email</span>
-              <a href="mailto:hello@visionpure.studio" class="info-value reveal-text">hello@visionpure.studio</a>
-            </div>
-            <div class="info-block">
-              <span class="info-label reveal-text">Location</span>
-              <p class="info-value reveal-text">Paris, France<br />Worldwide</p>
-            </div>
-            <div class="info-block">
-              <span class="info-label reveal-text">Social</span>
-              <div class="social-links reveal-text">
-                <a href="#">Instagram</a>
-                <a href="#">LinkedIn</a>
-                <a href="#">Dribbble</a>
-              </div>
-            </div>
-          </div>
-
-          <!-- Form Column -->
-          <form class="contact__form reveal-text" @submit.prevent>
-            <div class="form-group">
-              <input type="text" id="name" placeholder=" " required />
-              <label for="name">Nom</label>
-            </div>
-            <div class="form-group">
-              <input type="email" id="email" placeholder=" " required />
-              <label for="email">Email</label>
-            </div>
-            <div class="form-group">
-              <textarea id="message" rows="4" placeholder=" " required></textarea>
-              <label for="message">Message</label>
-            </div>
-            <button type="submit" class="submit-btn">
-              <span>Envoyer</span>
-              <div class="btn-glow"></div>
-            </button>
-          </form>
-        </div>
+        <ContactForm />
       </div>
     </section>
 
@@ -395,15 +382,15 @@ onUnmounted(() => {
     <footer class="footer">
       <div class="footer__container">
         <div class="footer__left">
-          <p class="">© 2026 VISION PURE STUDIO</p>
+          <p>{{ t('footer.copyright') }}</p>
         </div>
         <div class="footer__center">
-          <p class="">DESIGNED WITH PASSION</p>
+          <p>{{ t('footer.tagline') }}</p>
         </div>
         <div class="footer__right">
-          <div class="footer__links ">
-            <a href="#">Privacy</a>
-            <a href="#">Terms</a>
+          <div class="footer__links">
+            <a href="#">{{ t('footer.privacy') }}</a>
+            <a href="#">{{ t('footer.terms') }}</a>
           </div>
         </div>
       </div>
@@ -474,8 +461,13 @@ html.lenis {
 }
 
 /* =========================================================================
-   NAVIGATION (DETACHED GLASSMORPHISM)
+   NAVIGATION
    ========================================================================= */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; box-shadow: 0 0 6px var(--color-accent), 0 0 12px rgba(0,255,204,0.4); }
+  50%       { opacity: 0.35; box-shadow: 0 0 3px var(--color-accent); }
+}
+
 .navbar {
   position: fixed;
   top: 1.5rem;
@@ -484,96 +476,243 @@ html.lenis {
   width: 90%;
   max-width: 1200px;
   z-index: 100;
-  padding: 0.75rem 1.5rem;
-  background: rgba(255, 255, 255, 0.03);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  padding: 0.6rem 0.6rem 0.6rem 1.5rem;
+  background: rgba(8, 8, 8, 0.65);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.07);
   border-radius: 100px;
-  transition: all 0.4s cubic-bezier(0.25, 1, 0.5, 1);
-  will-change: transform, background, padding;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.06),
+    0 8px 32px rgba(0,0,0,0.5),
+    0 0 0 0 rgba(0,255,204,0);
+  transition: all 0.5s cubic-bezier(0.25, 1, 0.5, 1);
+  will-change: transform, width, box-shadow;
 
   &--scrolled {
-    padding: 0.5rem 1.2rem;
-    background: rgba(0, 0, 0, 0.4);
-    width: 85%;
-    border-color: rgba(0, 255, 204, 0.2);
+    padding: 0.5rem 0.5rem 0.5rem 1.25rem;
+    background: rgba(4, 4, 4, 0.85);
+    width: 84%;
+    border-color: rgba(0, 255, 204, 0.14);
+    box-shadow:
+      inset 0 1px 0 rgba(0,255,204,0.06),
+      0 16px 48px rgba(0,0,0,0.7),
+      0 0 60px rgba(0,255,204,0.03);
   }
 
   &__container {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 1.5rem;
   }
 
   &__logo {
-    font-size: 1.1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    font-size: 0.95rem;
     font-weight: 800;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.14em;
     color: #fff;
     text-decoration: none;
-    transition: color 0.3s ease;
+    flex-shrink: 0;
+    transition: opacity 0.3s ease;
+
+    .logo-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--color-accent);
+      flex-shrink: 0;
+      animation: pulse-dot 2.8s ease-in-out infinite;
+    }
 
     &:hover {
-      color: var(--color-accent);
+      opacity: 0.65;
     }
   }
 
   &__menu {
     display: flex;
-    gap: 2.5rem;
+    gap: 0.15rem;
+    flex: 1;
+    justify-content: center;
 
     @media (max-width: 768px) {
       display: none;
     }
 
     .nav-link {
-      font-size: 0.75rem;
-      font-weight: 500;
-      text-transform: uppercase;
-      letter-spacing: 0.2em;
-      color: rgba(255, 255, 255, 0.5);
-      text-decoration: none;
-      transition: all 0.3s ease;
       position: relative;
+      padding: 0.45rem 1rem 0.55rem;
+      font-size: 0.68rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
+      color: rgba(255, 255, 255, 0.38);
+      text-decoration: none;
+      border-radius: 100px;
+      transition: color 0.25s ease, background 0.25s ease;
 
       &::after {
         content: '';
         position: absolute;
-        bottom: -4px;
-        left: 0;
-        width: 0;
-        height: 1px;
+        bottom: 6px;
+        left: 50%;
+        transform: translateX(-50%) scale(0);
+        width: 3px;
+        height: 3px;
+        border-radius: 50%;
         background: var(--color-accent);
-        transition: width 0.3s ease;
+        box-shadow: 0 0 6px var(--color-accent);
+        transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
       }
 
       &:hover {
         color: #fff;
+        background: rgba(255, 255, 255, 0.05);
 
         &::after {
-          width: 100%;
+          transform: translateX(-50%) scale(1);
         }
       }
     }
   }
 
+  &__right {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-shrink: 0;
+  }
+
   &__cta {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
     background: var(--color-accent);
     color: #000;
     border: none;
-    padding: 0.5rem 1.5rem;
+    padding: 0.6rem 1.2rem;
     border-radius: 100px;
-    font-size: 0.75rem;
-    font-weight: 700;
+    font-family: inherit;
+    font-size: 0.68rem;
+    font-weight: 800;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.08em;
     cursor: pointer;
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    transition: all 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+    white-space: nowrap;
+
+    .cta-text {
+      display: inline;
+    }
+
+    .cta-arrow {
+      display: inline-block;
+      font-size: 0.8rem;
+      line-height: 1;
+      transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
 
     &:hover {
-      transform: scale(1.05);
-      box-shadow: 0 0 20px rgba(0, 255, 204, 0.4);
+      transform: translateY(-2px);
+      box-shadow:
+        0 0 0 3px rgba(0,255,204,0.15),
+        0 8px 24px rgba(0,255,204,0.3);
+
+      .cta-arrow {
+        transform: translate(2px, -2px);
+      }
+    }
+
+    &:active {
+      transform: translateY(0);
+    }
+  }
+
+  // ── Responsive ────────────────────────────────────────────────────────────
+  @media (max-width: 600px) {
+    top: 1rem;
+    width: 94%;
+    padding: 0.45rem 0.45rem 0.45rem 1.1rem;
+
+    &--scrolled {
+      width: 90%;
+    }
+
+    &__logo {
+      font-size: 0.82rem;
+      letter-spacing: 0.1em;
+
+      .logo-dot {
+        width: 6px;
+        height: 6px;
+      }
+    }
+
+    &__right {
+      gap: 0.4rem;
+    }
+
+    &__cta {
+      padding: 0.58rem 0.65rem;
+      gap: 0;
+
+      .cta-text {
+        display: none;
+      }
+
+      .cta-arrow {
+        font-size: 0.9rem;
+      }
+    }
+  }
+}
+
+.lang-switcher {
+  display: flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 100px;
+  padding: 0.2rem;
+  gap: 0.1rem;
+
+  .lang-btn {
+    background: transparent;
+    border: none;
+    padding: 0.3rem 0.55rem;
+    font-family: inherit;
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    color: rgba(255, 255, 255, 0.28);
+    cursor: pointer;
+    border-radius: 100px;
+    transition: all 0.2s ease;
+    line-height: 1;
+
+    &:hover:not(.lang-btn--active) {
+      color: rgba(255, 255, 255, 0.6);
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    &--active {
+      background: rgba(0, 255, 204, 0.1);
+      color: var(--color-accent);
+      box-shadow: 0 0 10px rgba(0, 255, 204, 0.12);
+    }
+  }
+
+  @media (max-width: 600px) {
+    padding: 0.15rem;
+
+    .lang-btn {
+      padding: 0.28rem 0.42rem;
+      font-size: 0.56rem;
+      letter-spacing: 0.08em;
     }
   }
 }
@@ -1132,148 +1271,6 @@ html.lenis {
     }
   }
 
-  &__layout {
-    display: grid;
-    grid-template-columns: 1fr 1.5fr;
-    gap: clamp(4rem, 10vw, 8rem);
-
-    @media (max-width: 992px) {
-      grid-template-columns: 1fr;
-      gap: 4rem;
-    }
-  }
-
-  &__info {
-    display: flex;
-    flex-direction: column;
-    gap: 3rem;
-
-    .info-block {
-      display: flex;
-      flex-direction: column;
-      gap: 0.5rem;
-
-      .info-label {
-        font-size: 0.8rem;
-        text-transform: uppercase;
-        letter-spacing: 0.2em;
-        color: rgba(255, 255, 255, 0.4);
-      }
-
-      .info-value {
-        font-size: clamp(1.2rem, 2vw, 1.8rem);
-        font-weight: 500;
-        color: #fff;
-        text-decoration: none;
-        transition: color 0.3s ease;
-
-        &:hover {
-          color: var(--color-accent);
-        }
-      }
-    }
-
-    .social-links {
-      display: flex;
-      gap: 2rem;
-      flex-wrap: wrap;
-
-      a {
-        color: #fff;
-        text-decoration: none;
-        font-size: 1rem;
-        opacity: 0.6;
-        transition: opacity 0.3s ease, color 0.3s ease;
-
-        &:hover {
-          opacity: 1;
-          color: var(--color-accent);
-        }
-      }
-    }
-  }
-
-  &__form {
-    display: flex;
-    flex-direction: column;
-    gap: 2.5rem;
-
-    .form-group {
-      position: relative;
-
-      input,
-      textarea {
-        width: 100%;
-        padding: 1rem 0;
-        background: transparent;
-        border: none;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-        color: #fff;
-        font-family: inherit;
-        font-size: 1.1rem;
-        transition: border-color 0.3s ease;
-
-        &:focus {
-          outline: none;
-          border-color: var(--color-accent);
-        }
-
-        /* Float Label Logic */
-        &:focus+label,
-        &:not(:placeholder-shown)+label {
-          transform: translateY(-20px);
-          font-size: 0.8rem;
-          color: var(--color-accent);
-        }
-      }
-
-      label {
-        position: absolute;
-        left: 0;
-        top: 1rem;
-        color: rgba(255, 255, 255, 0.4);
-        pointer-events: none;
-        transition: all 0.3s ease;
-      }
-    }
-
-    .submit-btn {
-      align-self: flex-start;
-      padding: 1.2rem 4rem;
-      background: #fff;
-      color: #000;
-      border: none;
-      border-radius: 100px;
-      font-size: 1.1rem;
-      font-weight: 600;
-      cursor: pointer;
-      position: relative;
-      overflow: hidden;
-      transition: transform 0.3s ease;
-
-      span {
-        position: relative;
-        z-index: 2;
-      }
-
-      &:hover {
-        transform: translateY(-5px);
-
-        .btn-glow {
-          opacity: 1;
-        }
-      }
-
-      .btn-glow {
-        position: absolute;
-        inset: 0;
-        background: var(--color-accent-gradient);
-        opacity: 0;
-        transition: opacity 0.3s ease;
-        z-index: 1;
-      }
-    }
-  }
 }
 
 /* =========================================================================

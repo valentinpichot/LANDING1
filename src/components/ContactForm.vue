@@ -63,7 +63,7 @@ async function submit() {
       access_key: WEB3FORMS_KEY,
       name: form.value.name,
       email: form.value.email,
-      subject: `[Vision Pure] Nouveau projet — ${t(`contact.project_${form.value.projectType}`)}`,
+      subject: `[V-Studios Demo] Nouveau projet — ${t(`contact.project_${form.value.projectType}`)}`,
       message: [
         `Nom : ${form.value.name}`,
         `Email : ${form.value.email}`,
@@ -93,7 +93,7 @@ async function submit() {
     <div class="contact__info">
       <div class="info-block">
         <span class="info-label reveal-text">{{ t('contact.email_label') }}</span>
-        <a href="mailto:hello@visionpure.studio" class="info-value reveal-text">hello@visionpure.studio</a>
+        <a href="mailto:hello@v-studios.demo" class="info-value reveal-text">hello@v-studios.demo</a>
       </div>
       <div class="info-block">
         <span class="info-label reveal-text">{{ t('contact.location_label') }}</span>

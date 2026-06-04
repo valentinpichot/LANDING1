@@ -28,19 +28,27 @@ const galleryImages = ref<HTMLElement[]>([]);
 const contactSection = ref<HTMLElement | null>(null);
 
 const galleryData = [
-  { id: 1015, year: '2025', w: 800, h: 1200 },
-  { id: 1016, year: '2024', w: 1000, h: 700 },
-  { id: 1025, year: '2026', w: 1000, h: 700 },
-  { id: 1032, year: '2025', w: 800, h: 1200 },
+  { img: 'https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?q=80&w=800&h=1200&auto=format&fit=crop', year: '2025' },
+  { img: 'https://images.unsplash.com/photo-1576091160550-2173dba999ef?q=80&w=1000&h=700&auto=format&fit=crop', year: '2024' },
+  { img: 'https://images.unsplash.com/photo-1507842217343-583bb7270b66?q=80&w=1000&h=700&auto=format&fit=crop', year: '2026' },
+  { img: 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=800&h=1200&auto=format&fit=crop', year: '2025' },
 ];
 
 const processSteps = computed(
   () => tm('process.steps') as Array<{ title: string; description: string }>
 );
+
+const processTags = [
+  ['UX Research', 'Moodboard', 'Workshop'],
+  ['Figma', 'GSAP', 'Motion'],
+  ['Vue 3', 'Lighthouse 100', 'Core Web Vitals'],
+];
 const navbar = ref<HTMLElement | null>(null);
+const cursor = ref<HTMLElement | null>(null);
 
 let ctx: gsap.Context;
 let lenis: Lenis | null = null;
+let cursorMoveHandler: ((e: MouseEvent) => void) | null = null;
 
 const scrollTo = (target: string) => lenis?.scrollTo(target, { duration: 1 });
 
@@ -219,6 +227,20 @@ onMounted(() => {
 
     }, mainContainer.value); // Scope to main component
   }
+
+  // Custom cursor (pointer devices only)
+  if (cursor.value && window.matchMedia('(pointer: fine)').matches) {
+    gsap.set(cursor.value, { x: -100, y: -100 });
+    cursorMoveHandler = (e: MouseEvent) => {
+      gsap.to(cursor.value, { x: e.clientX, y: e.clientY, duration: 0.12, ease: 'power3.out' });
+    };
+    window.addEventListener('mousemove', cursorMoveHandler);
+
+    document.querySelectorAll('a, button, .gallery__item-inner, .project-card, .budget-pill, .lang-btn, .nav-link').forEach(el => {
+      el.addEventListener('mouseenter', () => cursor.value?.classList.add('is-hovering'));
+      el.addEventListener('mouseleave', () => cursor.value?.classList.remove('is-hovering'));
+    });
+  }
 });
 
 onUnmounted(() => {
@@ -227,6 +249,7 @@ onUnmounted(() => {
     lenis.destroy();
     lenis = null;
   }
+  if (cursorMoveHandler) window.removeEventListener('mousemove', cursorMoveHandler);
   gsap.ticker.remove((time) => {
     lenis?.raf(time * 1000);
   });
@@ -234,13 +257,14 @@ onUnmounted(() => {
 </script>
 
 <template>
+  <div ref="cursor" class="cursor" aria-hidden="true"></div>
   <main ref="mainContainer" class="landing-page dark-mode">
     <!-- NAVIGATION -->
     <nav ref="navbar" class="navbar">
       <div class="navbar__container">
         <a href="#" class="navbar__logo">
           <span class="logo-dot"></span>
-          VISION PURE
+          V-STUDIOS DEMO
         </a>
 
         <div class="navbar__menu">
@@ -275,21 +299,27 @@ onUnmounted(() => {
       <div class="hero__content">
         <h1 ref="heroTitle" class="hero__title">
           <span class="word">
-            <span class="char">V</span><span class="char">I</span><span class="char">S</span><span
-              class="char">I</span><span class="char">O</span><span class="char">N</span>
+            <span class="char">V</span><span class="char">-</span><span class="char">S</span><span class="char">T</span><span class="char">U</span><span class="char">D</span><span class="char">I</span><span class="char">O</span><span class="char">S</span>
           </span>
           <span class="word">
-            <span class="char">P</span><span class="char">U</span><span class="char">R</span><span class="char">E</span>
+            <span class="char">D</span><span class="char">E</span><span class="char">M</span><span class="char">O</span>
           </span>
         </h1>
         <p class="hero__subtitle">{{ t('hero.subtitle') }}</p>
 
         <div ref="heroBtns" class="hero__ctas">
-          <button class="btn btn--primary">
+          <button class="btn btn--primary" @click="scrollTo('#contact')">
             <span>{{ t('hero.cta_primary') }}</span>
             <div class="btn-glow"></div>
           </button>
-          <button class="btn btn--secondary">{{ t('hero.cta_secondary') }}</button>
+          <button class="btn btn--secondary" @click="scrollTo('#gallery')">{{ t('hero.cta_secondary') }}</button>
+        </div>
+      </div>
+
+      <!-- SCROLL INDICATOR -->
+      <div class="scroll-indicator" aria-hidden="true">
+        <div class="scroll-indicator__line">
+          <div class="scroll-indicator__drop"></div>
         </div>
       </div>
 
@@ -313,14 +343,29 @@ onUnmounted(() => {
     <!-- PROCESS SECTION -->
     <section ref="processSection" class="process" id="process">
       <div class="process__header">
-        <h2 class="reveal-text">{{ t('process.title') }}</h2>
+        <div class="process__header-left">
+          <span class="process__eyebrow">{{ t('process.eyebrow') }}</span>
+          <h2 class="reveal-text">{{ t('process.title') }}</h2>
+        </div>
+        <div class="process__header-right">
+          <span class="process__count reveal-text">{{ processSteps.length }} {{ t('process.steps_label') }}</span>
+          <span class="process__scroll-hint">{{ t('process.scroll_hint') }}</span>
+        </div>
       </div>
       <div ref="processCardsWrapper" class="process__cards">
         <div class="process-card" v-for="(step, i) in processSteps" :key="i">
           <div class="process-card__inner">
-            <span class="process-card__number">0{{ i + 1 }}</span>
-            <h3 class="reveal-text">{{ step.title }}</h3>
-            <p class="reveal-text">{{ step.description }}</p>
+            <div class="process-card__top">
+              <span class="process-card__badge">0{{ i + 1 }}</span>
+            </div>
+            <div class="process-card__body">
+              <h3 class="reveal-text">{{ step.title }}</h3>
+              <p class="reveal-text">{{ step.description }}</p>
+            </div>
+            <div class="process-card__footer">
+              <span v-for="tag in processTags[i]" :key="tag" class="process-card__tag">{{ tag }}</span>
+            </div>
+            <span class="process-card__watermark" aria-hidden="true">0{{ i + 1 }}</span>
           </div>
         </div>
       </div>
@@ -342,14 +387,14 @@ onUnmounted(() => {
       <div class="gallery__grid">
         <div
           v-for="(item, index) in galleryData"
-          :key="item.id"
+          :key="index"
           class="gallery__item"
           :class="`gallery__item--${index}`"
           ref="galleryImages"
         >
           <div class="gallery__item-inner">
             <img
-              :src="`https://picsum.photos/id/${item.id}/${item.w}/${item.h}`"
+              :src="item.img"
               :alt="t(`gallery.projects.${index}.title`)"
               loading="lazy"
             />
@@ -717,6 +762,47 @@ html.lenis {
   }
 }
 
+/* =========================================================================
+   CUSTOM CURSOR
+   ========================================================================= */
+.cursor {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(0, 255, 204, 0.65);
+  pointer-events: none;
+  z-index: 99999;
+  transform: translate(-50%, -50%);
+  will-change: transform;
+  transition:
+    width 0.35s cubic-bezier(0.25, 1, 0.5, 1),
+    height 0.35s cubic-bezier(0.25, 1, 0.5, 1),
+    background 0.35s ease,
+    border-color 0.35s ease;
+
+  &.is-hovering {
+    width: 46px;
+    height: 46px;
+    background: rgba(0, 255, 204, 0.07);
+    border-color: rgba(0, 255, 204, 0.35);
+  }
+
+  @media (pointer: coarse) { display: none; }
+}
+
+.landing-page,
+.landing-page * {
+  cursor: none;
+}
+
+.landing-page input,
+.landing-page textarea {
+  cursor: text;
+}
+
 .landing-page {
   width: 100%;
 }
@@ -744,17 +830,29 @@ html.lenis {
     width: 120%;
     height: 120%;
     /* Cinematic Background */
-    background-image: url('https://images.unsplash.com/photo-1550684848-fac1c5b4e853?q=80&w=2070&auto=format&fit=crop');
+    background-image: url('https://images.unsplash.com/photo-1567359781514-3b964e2b04d6?q=80&w=2560&auto=format&fit=crop');
     background-size: cover;
     background-position: center;
     z-index: 0;
     will-change: transform;
+    filter: hue-rotate(-65deg) saturate(0.75) brightness(0.88);
+  }
+
+  // Cinematic grain
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23n)'/%3E%3C/svg%3E");
+    opacity: 0.055;
   }
 
   &__overlay {
     position: absolute;
     inset: 0;
-    background: linear-gradient(180deg, rgba(5, 5, 5, 0.4) 0%, rgba(5, 5, 5, 0.95) 100%);
+    background: linear-gradient(180deg, rgba(5, 5, 5, 0.3) 0%, rgba(5, 5, 5, 0.62) 55%, rgba(5, 5, 5, 0.97) 100%);
     z-index: 1;
   }
 
@@ -870,6 +968,45 @@ html.lenis {
     }
   }
 
+  // ── Scroll indicator ───────────────────────────────────────────────────
+  .scroll-indicator {
+    position: absolute;
+    bottom: 7rem;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    z-index: 15;
+
+    @media (max-width: 768px) { display: none; }
+
+    &__line {
+      width: 1px;
+      height: 64px;
+      background: rgba(255, 255, 255, 0.08);
+      position: relative;
+      overflow: hidden;
+      border-radius: 1px;
+    }
+
+    &__drop {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 40%;
+      background: linear-gradient(to bottom, var(--color-accent), transparent);
+      animation: scroll-drop 2.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+  }
+
+  @keyframes scroll-drop {
+    0%   { top: -40%; opacity: 1; }
+    80%  { opacity: 0.6; }
+    100% { top: 120%; opacity: 0; }
+  }
+
   &__infobar {
     position: absolute;
     bottom: 0;
@@ -926,72 +1063,189 @@ html.lenis {
   &__header {
     padding: 0 5vw;
     margin-bottom: 5vh;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
 
-    h2 {
-      font-size: clamp(2.5rem, 5vw, 4rem);
-      font-weight: 700;
-      letter-spacing: -0.02em;
-      background: var(--color-accent-gradient);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      display: inline-block;
+    &-left {
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
     }
+
+    &-right {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 0.4rem;
+      padding-bottom: 0.2rem;
+    }
+  }
+
+  &__eyebrow {
+    font-size: 0.72rem;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--color-accent);
+    font-weight: 500;
+  }
+
+  &__count {
+    font-size: 0.68rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.22);
+  }
+
+  &__scroll-hint {
+    font-size: 0.62rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.12);
+  }
+
+  h2 {
+    font-size: clamp(2.5rem, 5vw, 4.5rem);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1;
+    color: #fff;
   }
 
   &__cards {
     display: flex;
     width: max-content;
     padding: 0 5vw;
-    gap: clamp(2rem, 5vw, 4rem);
+    gap: clamp(1.5rem, 3vw, 2.5rem);
     will-change: transform;
   }
 
   &-card {
-    width: clamp(300px, 60vw, 700px);
-    height: 60vh;
-    border-radius: 32px;
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0.01) 100%);
-    backdrop-filter: blur(20px);
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    padding: clamp(2rem, 5vw, 4rem);
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    box-shadow: 0 30px 60px rgba(0, 0, 0, 0.8);
-    position: relative;
+    width: clamp(340px, 58vw, 720px);
+    height: 62vh;
+    border-radius: 28px;
+    background: linear-gradient(155deg, #0e0e0e 0%, #080808 100%);
+    border: 1px solid rgba(255, 255, 255, 0.06);
     overflow: hidden;
+    position: relative;
+    box-shadow: 0 40px 80px rgba(0, 0, 0, 0.6);
+    transition: transform 0.45s cubic-bezier(0.25, 1, 0.5, 1),
+                box-shadow 0.45s cubic-bezier(0.25, 1, 0.5, 1);
 
+    // Colored orb — unique per card
+    &::before {
+      content: '';
+      position: absolute;
+      top: -80px;
+      right: -80px;
+      width: 260px;
+      height: 260px;
+      border-radius: 50%;
+      filter: blur(80px);
+      pointer-events: none;
+      transition: opacity 0.4s ease;
+    }
+
+    // Gradient top line
     &::after {
       content: '';
       position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
+      top: 0; left: 0; right: 0;
       height: 1px;
-      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.12), transparent);
     }
 
-    &__number {
-      font-size: clamp(4rem, 8vw, 6rem);
-      font-weight: 800;
-      color: var(--color-accent);
-      opacity: 0.15;
-      line-height: 1;
+    &:nth-child(1)::before { background: #00ffcc; opacity: 0.09; }
+    &:nth-child(2)::before { background: #ff00cc; opacity: 0.07; }
+    &:nth-child(3)::before { background: #7b2fff; opacity: 0.08; }
+
+    &:hover {
+      transform: translateY(-10px);
+      box-shadow: 0 60px 100px rgba(0, 0, 0, 0.7);
+
+      &::before { opacity: 0.16; }
+      .process-card__tag { border-color: rgba(255, 255, 255, 0.12); color: rgba(255, 255, 255, 0.5); }
+    }
+
+    &__inner {
+      height: 100%;
+      padding: clamp(2rem, 4vw, 3.5rem);
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    &__top {
       margin-bottom: auto;
     }
 
-    h3 {
-      font-size: clamp(2rem, 4vw, 3rem);
-      font-weight: 700;
-      margin-bottom: 1.5rem;
-      color: #fff;
+    &__badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 38px;
+      height: 38px;
+      border: 1px solid rgba(0, 255, 204, 0.2);
+      border-radius: 10px;
+      font-size: 0.68rem;
+      font-weight: 800;
+      color: var(--color-accent);
+      letter-spacing: 0.05em;
+      background: rgba(0, 255, 204, 0.04);
     }
 
-    p {
-      font-size: clamp(1rem, 1.5vw, 1.25rem);
-      color: rgba(255, 255, 255, 0.6);
-      line-height: 1.6;
-      max-width: 80%;
+    &__body {
+      margin-bottom: 2rem;
+
+      h3 {
+        font-size: clamp(1.7rem, 3.2vw, 2.6rem);
+        font-weight: 800;
+        letter-spacing: -0.03em;
+        line-height: 1.1;
+        color: #fff;
+        margin-bottom: 1.1rem;
+      }
+
+      p {
+        font-size: clamp(0.9rem, 1.2vw, 1.1rem);
+        color: rgba(255, 255, 255, 0.48);
+        line-height: 1.75;
+        max-width: 82%;
+      }
+    }
+
+    &__footer {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      margin-top: auto;
+    }
+
+    &__tag {
+      font-size: 0.6rem;
+      font-weight: 600;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.28);
+      padding: 0.28rem 0.7rem;
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      border-radius: 100px;
+      transition: color 0.25s ease, border-color 0.25s ease;
+    }
+
+    &__watermark {
+      position: absolute;
+      bottom: -0.15em;
+      right: 0.1em;
+      font-size: clamp(8rem, 16vw, 14rem);
+      font-weight: 900;
+      line-height: 1;
+      letter-spacing: -0.06em;
+      color: rgba(255, 255, 255, 0.028);
+      pointer-events: none;
+      user-select: none;
     }
   }
 }

@@ -17,7 +17,10 @@ export default {
     stat_since_value: '2019',
   },
   process: {
+    eyebrow: '— Méthode',
     title: 'Notre Approche',
+    steps_label: 'étapes',
+    scroll_hint: '↔ scroll',
     steps: [
       {
         title: 'Stratégie & Conception',
@@ -86,7 +89,7 @@ export default {
     success_text: 'On vous répond sous 24h. À très vite.',
   },
   footer: {
-    copyright: '© 2026 VISION PURE STUDIO',
+    copyright: '© 2026 V-STUDIOS DEMO',
     tagline: 'CRAFT SINCE 2019',
     privacy: 'Privacy',
     terms: 'Terms',

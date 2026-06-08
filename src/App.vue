@@ -829,13 +829,16 @@ html.lenis {
     left: -10%;
     width: 120%;
     height: 120%;
-    /* Cinematic Background */
-    background-image: url('https://images.unsplash.com/photo-1567359781514-3b964e2b04d6?q=80&w=2560&auto=format&fit=crop');
-    background-size: cover;
-    background-position: center;
+    // Apple aurora mesh gradient — dark mode macOS style
+    background:
+      radial-gradient(ellipse at 22% 18%, rgba(150, 70, 255, 0.95) 0%, transparent 48%),
+      radial-gradient(ellipse at 78% 12%, rgba(20, 120, 255, 0.90) 0%, transparent 44%),
+      radial-gradient(ellipse at 60% 78%, rgba(0, 200, 255, 0.70) 0%, transparent 46%),
+      radial-gradient(ellipse at 12% 82%, rgba(180, 20, 240, 0.65) 0%, transparent 42%),
+      radial-gradient(ellipse at 88% 65%, rgba(80, 20, 220, 0.55) 0%, transparent 38%),
+      #060415;
     z-index: 0;
     will-change: transform;
-    filter: hue-rotate(-65deg) saturate(0.75) brightness(0.88);
   }
 
   // Cinematic grain
@@ -852,7 +855,7 @@ html.lenis {
   &__overlay {
     position: absolute;
     inset: 0;
-    background: linear-gradient(180deg, rgba(5, 5, 5, 0.3) 0%, rgba(5, 5, 5, 0.62) 55%, rgba(5, 5, 5, 0.97) 100%);
+    background: linear-gradient(180deg, rgba(6, 4, 21, 0.05) 0%, rgba(6, 4, 21, 0.30) 55%, rgba(6, 4, 21, 0.97) 100%);
     z-index: 1;
   }
 

@@ -446,7 +446,7 @@ onUnmounted(() => {
 <style lang="scss">
 :root {
   /* Modern CSS Variables & Dark Mode / Neon theme */
-  --color-bg: #050505;
+  --color-bg: #10082e;
   --color-text: #f0f0f0;
   --color-accent: #00ffcc;
   /* Neon cyan accent */
@@ -831,12 +831,13 @@ html.lenis {
     height: 120%;
     // Apple aurora mesh gradient — dark mode macOS style
     background:
-      radial-gradient(ellipse at 22% 18%, rgba(150, 70, 255, 0.95) 0%, transparent 48%),
-      radial-gradient(ellipse at 78% 12%, rgba(20, 120, 255, 0.90) 0%, transparent 44%),
-      radial-gradient(ellipse at 60% 78%, rgba(0, 200, 255, 0.70) 0%, transparent 46%),
-      radial-gradient(ellipse at 12% 82%, rgba(180, 20, 240, 0.65) 0%, transparent 42%),
-      radial-gradient(ellipse at 88% 65%, rgba(80, 20, 220, 0.55) 0%, transparent 38%),
-      #060415;
+      radial-gradient(ellipse at 20% 20%, rgba(130, 80, 255, 1)    0%, transparent 42%),
+      radial-gradient(ellipse at 75% 10%, rgba(60,  150, 255, 1)    0%, transparent 40%),
+      radial-gradient(ellipse at 50% 55%, rgba(255, 255, 255, 0.06) 0%, transparent 50%),
+      radial-gradient(ellipse at 58% 82%, rgba(0,   210, 255, 0.90) 0%, transparent 44%),
+      radial-gradient(ellipse at 10% 78%, rgba(200, 40,  255, 0.85) 0%, transparent 40%),
+      radial-gradient(ellipse at 88% 60%, rgba(90,  30,  230, 0.75) 0%, transparent 36%),
+      #10082e;
     z-index: 0;
     will-change: transform;
   }
@@ -855,7 +856,7 @@ html.lenis {
   &__overlay {
     position: absolute;
     inset: 0;
-    background: linear-gradient(180deg, rgba(6, 4, 21, 0.05) 0%, rgba(6, 4, 21, 0.30) 55%, rgba(6, 4, 21, 0.97) 100%);
+    background: linear-gradient(180deg, rgba(16, 8, 46, 0.0) 0%, rgba(16, 8, 46, 0.22) 50%, rgba(16, 8, 46, 0.97) 100%);
     z-index: 1;
   }
 
@@ -1127,7 +1128,7 @@ html.lenis {
     width: clamp(340px, 58vw, 720px);
     height: 62vh;
     border-radius: 28px;
-    background: linear-gradient(155deg, #0e0e0e 0%, #080808 100%);
+    background: linear-gradient(155deg, #1a0d3e 0%, #0e0630 100%);
     border: 1px solid rgba(255, 255, 255, 0.06);
     overflow: hidden;
     position: relative;
@@ -1367,7 +1368,7 @@ html.lenis {
   }
 
   &__item {
-    background-color: #0e0e0e;
+    background-color: #0e0630;
     clip-path: inset(100% 0% 0% 0% round 12px);
     will-change: clip-path;
 

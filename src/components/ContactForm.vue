@@ -6,7 +6,7 @@ const { t } = useI18n();
 
 // Set VITE_WEB3FORMS_KEY in .env — get a free key at web3forms.com
 // In demo mode (no key), the form simulates a successful submission.
-const WEB3FORMS_KEY = (import.meta as any).env?.VITE_WEB3FORMS_KEY ?? '';
+const WEB3FORMS_KEY = import.meta.env.VITE_WEB3FORMS_KEY ?? '';
 
 const TOTAL_STEPS = 3;
 const step = ref(1);
@@ -106,9 +106,9 @@ async function submit() {
       <div class="info-block">
         <span class="info-label reveal-text">{{ t('contact.social_label') }}</span>
         <div class="social-links reveal-text">
-          <a href="#">Instagram</a>
-          <a href="#">LinkedIn</a>
-          <a href="#">Dribbble</a>
+          <a href="https://instagram.com/vstudios" target="_blank" rel="noopener noreferrer">Instagram</a>
+          <a href="https://linkedin.com/company/vstudios" target="_blank" rel="noopener noreferrer">LinkedIn</a>
+          <a href="https://dribbble.com/vstudios" target="_blank" rel="noopener noreferrer">Dribbble</a>
         </div>
       </div>
     </div>

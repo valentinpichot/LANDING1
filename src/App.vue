@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, reactive, onMounted, onUnmounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import ContactForm from './components/ContactForm.vue';
 import gsap from 'gsap';
@@ -10,49 +10,80 @@ gsap.registerPlugin(ScrollTrigger);
 
 const { t, tm, locale } = useI18n();
 
+// Persist locale + keep html[lang] in sync (#8)
 watch(locale, (val) => {
   localStorage.setItem('locale', val as string);
-});
+  document.documentElement.lang = val as string;
+}, { immediate: true });
 
 const mainContainer = ref<HTMLElement | null>(null);
-const heroSection = ref<HTMLElement | null>(null);
-const heroTitle = ref<HTMLElement | null>(null);
-const heroBg = ref<HTMLElement | null>(null);
-const heroBtns = ref<HTMLElement | null>(null);
+const heroSection   = ref<HTMLElement | null>(null);
+const heroTitle     = ref<HTMLElement | null>(null);
+const heroBg        = ref<HTMLElement | null>(null);
+const heroBtns      = ref<HTMLElement | null>(null);
+const processSection       = ref<HTMLElement | null>(null);
+const processCardsWrapper  = ref<HTMLElement | null>(null);
+const gallerySection  = ref<HTMLElement | null>(null);
+const galleryImages   = ref<HTMLElement[]>([]);
+const contactSection  = ref<HTMLElement | null>(null);
+const navbar = ref<HTMLElement | null>(null);
+const cursor = ref<HTMLElement | null>(null);
 
-const processSection = ref<HTMLElement | null>(null);
-const processCardsWrapper = ref<HTMLElement | null>(null);
+// Mobile menu (#2)
+const menuOpen  = ref(false);
+const toggleMenu = () => { menuOpen.value = !menuOpen.value; };
+const closeMenu  = () => { menuOpen.value = false; };
 
-const gallerySection = ref<HTMLElement | null>(null);
-const galleryImages = ref<HTMLElement[]>([]);
-const contactSection = ref<HTMLElement | null>(null);
+// Preloader (#17)
+const preloaderDone = ref(false);
 
+// Hero stat counters (#16)
+const heroStats = reactive({ clients: 0, projects: 0 });
+
+// Gallery data with explicit dimensions (#4)
 const galleryData = [
-  { img: 'https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?q=80&w=800&h=1200&auto=format&fit=crop', year: '2025' },
-  { img: 'https://images.unsplash.com/photo-1576091160550-2173dba999ef?q=80&w=1000&h=700&auto=format&fit=crop', year: '2024' },
-  { img: 'https://images.unsplash.com/photo-1507842217343-583bb7270b66?q=80&w=1000&h=700&auto=format&fit=crop', year: '2026' },
-  { img: 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=800&h=1200&auto=format&fit=crop', year: '2025' },
+  { img: 'https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?q=80&w=800&h=1200&auto=format&fit=crop', year: '2025', width: 800, height: 1200 },
+  { img: 'https://images.unsplash.com/photo-1576091160550-2173dba999ef?q=80&w=1000&h=700&auto=format&fit=crop',  year: '2024', width: 1000, height: 700  },
+  { img: 'https://images.unsplash.com/photo-1507842217343-583bb7270b66?q=80&w=1000&h=700&auto=format&fit=crop',  year: '2026', width: 1000, height: 700  },
+  { img: 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=800&h=1200&auto=format&fit=crop',  year: '2025', width: 800, height: 1200 },
 ];
 
 const processSteps = computed(
   () => tm('process.steps') as Array<{ title: string; description: string }>
 );
 
-const processTags = [
-  ['UX Research', 'Moodboard', 'Workshop'],
-  ['Figma', 'GSAP', 'Motion'],
-  ['Vue 3', 'Lighthouse 100', 'Core Web Vitals'],
-];
-const navbar = ref<HTMLElement | null>(null);
-const cursor = ref<HTMLElement | null>(null);
+// processTags now come from i18n (#13)
+const processTags = computed(
+  () => tm('process.tags') as Array<string[]>
+);
 
 let ctx: gsap.Context;
 let lenis: Lenis | null = null;
 let cursorMoveHandler: ((e: MouseEvent) => void) | null = null;
+let lenisTickerFn:    ((time: number) => void) | null = null;  // fix #1
+let escHandler:       ((e: KeyboardEvent) => void) | null = null;
 
-const scrollTo = (target: string) => lenis?.scrollTo(target, { duration: 1 });
+const scrollTo = (target: string) => {
+  lenis?.scrollTo(target, { duration: 1 });
+  closeMenu();
+};
+
+// Scroll to the right page position so GSAP reveals a pinned process card (#10)
+const scrollToProcessCard = (index: number) => {
+  if (!processSection.value || !processCardsWrapper.value || !lenis) return;
+  const totalWidth = processCardsWrapper.value.scrollWidth - window.innerWidth;
+  const fraction   = processSteps.value.length > 1 ? index / (processSteps.value.length - 1) : 0;
+  lenis.scrollTo(processSection.value.offsetTop + fraction * totalWidth, { duration: 0.8 });
+};
 
 onMounted(() => {
+  // Preloader: hide after 950 ms — let the ring animation complete (#17)
+  setTimeout(() => { preloaderDone.value = true; }, 950);
+
+  // Close mobile menu on Escape (#2)
+  escHandler = (e: KeyboardEvent) => { if (e.key === 'Escape') closeMenu(); };
+  window.addEventListener('keydown', escHandler);
+
   // Initialize Lenis
   lenis = new Lenis({
     duration: 1.2,
@@ -65,167 +96,167 @@ onMounted(() => {
     infinite: false,
   });
 
-  // Synchronize Lenis with GSAP ScrollTrigger
   lenis.on('scroll', ScrollTrigger.update);
 
-  gsap.ticker.add((time) => {
-    lenis?.raf(time * 1000);
-  });
-
+  // Store reference so we can properly remove it (#1)
+  lenisTickerFn = (time) => { lenis?.raf(time * 1000); };
+  gsap.ticker.add(lenisTickerFn);
   gsap.ticker.lagSmoothing(0);
-  
+
   if (mainContainer.value) {
     ctx = gsap.context(() => {
-    // 1. Hero Effects
-    const tl = gsap.timeline();
+      // 1. Hero Effects
+      const tl = gsap.timeline();
 
-    // Background continuous zoom + Parallax
-    if (heroBg.value && heroSection.value) {
-      // Continuous subtle zoom
-      gsap.to(heroBg.value, {
-        scale: 1.15,
-        duration: 20, // Slower for more elegance
-        ease: "none",
-        repeat: -1,
-        yoyo: true
-      });
+      if (heroBg.value && heroSection.value) {
+        gsap.to(heroBg.value, {
+          scale: 1.15,
+          duration: 20,
+          ease: 'none',
+          repeat: -1,
+          yoyo: true,
+        });
 
-      // Scroll Parallax
-      gsap.to(heroBg.value, {
-        yPercent: 20,
-        ease: "none",
-        scrollTrigger: {
-          trigger: heroSection.value,
-          start: "top top",
-          end: "bottom top",
-          scrub: true
-        }
-      });
-    }
-
-    // Split-like text reveal + CTAs sequence
-    if (heroTitle.value) {
-      const letters = heroTitle.value.querySelectorAll('.char');
-
-      tl.from(letters, {
-        y: '100%',
-        opacity: 0,
-        duration: 1.2,
-        stagger: 0.04,
-        ease: 'power4.out',
-        delay: 0.2
-      })
-        .from('.hero__subtitle', {
-          y: 20,
-          autoAlpha: 0,
-          duration: 0.8,
-          ease: 'power3.out'
-        }, '-=0.6');
-
-      if (heroBtns.value) {
-        const btns = heroBtns.value.querySelectorAll('.btn');
-        tl.fromTo(btns,
-          { y: 20, autoAlpha: 0 },
-          {
-            y: 0,
-            autoAlpha: 1,
-            duration: 0.8,
-            stagger: 0.15,
-            ease: 'power3.out',
-            clearProps: "all"
+        gsap.to(heroBg.value, {
+          yPercent: 20,
+          ease: 'none',
+          scrollTrigger: {
+            trigger: heroSection.value,
+            start: 'top top',
+            end: 'bottom top',
+            scrub: true,
           },
-          '-=0.4'
-        );
+        });
       }
 
-      tl.from('.hero__infobar', {
-        autoAlpha: 0,
-        y: 20,
-        duration: 1,
-        ease: 'power3.out'
-      }, '-=0.4');
-    }
+      if (heroTitle.value) {
+        const letters = heroTitle.value.querySelectorAll('.char');
 
-    // Navbar entrance (Independent of heroTitle presence)
-    if (navbar.value) {
-      gsap.fromTo(navbar.value,
-        { y: -20, autoAlpha: 0 },
-        {
-          y: 0,
-          autoAlpha: 1,
+        tl.from(letters, {
+          y: '100%',
+          opacity: 0,
+          duration: 1.2,
+          stagger: 0.04,
+          ease: 'power4.out',
+          delay: 0.2,
+        })
+          .from('.hero__subtitle', {
+            y: 20,
+            autoAlpha: 0,
+            duration: 0.8,
+            ease: 'power3.out',
+          }, '-=0.6');
+
+        if (heroBtns.value) {
+          const btns = heroBtns.value.querySelectorAll('.btn');
+          tl.fromTo(btns,
+            { y: 20, autoAlpha: 0 },
+            {
+              y: 0,
+              autoAlpha: 1,
+              duration: 0.8,
+              stagger: 0.15,
+              ease: 'power3.out',
+              clearProps: 'all',
+            },
+            '-=0.4'
+          );
+        }
+
+        // Infobar reveal then immediately kick off counter (#16)
+        tl.from('.hero__infobar', {
+          autoAlpha: 0,
+          y: 20,
           duration: 1,
           ease: 'power3.out',
-          delay: 0.8, // Wait for hero initiation
-          clearProps: "all"
-        }
-      );
+        }, '-=0.4')
+          .to(heroStats, {
+            clients: 80,
+            projects: 150,
+            duration: 2,
+            ease: 'power2.out',
+            snap: { clients: 1, projects: 1 },
+          }, '<0.3');
+      }
 
-      // Scrolled state effect
-      ScrollTrigger.create({
-        start: "top -50",
-        onEnter: () => navbar.value?.classList.add('navbar--scrolled'),
-        onLeaveBack: () => navbar.value?.classList.remove('navbar--scrolled'),
-      });
-    }
-
-    // 2. Process Section: Horizontal Scroll over Vertical Scroll
-    if (processCardsWrapper.value && processSection.value) {
-      const totalWidth = processCardsWrapper.value.scrollWidth - window.innerWidth;
-
-      gsap.to(processCardsWrapper.value, {
-        x: -totalWidth,
-        ease: "none",
-        scrollTrigger: {
-          trigger: processSection.value,
-          pin: true,
-          scrub: 1,
-          start: "top top",
-          end: () => `+=${totalWidth}`
-        }
-      });
-    }
-
-    // 3. Reveal Gallery: Curtain wipe reveal
-    if (galleryImages.value.length > 0) {
-      ScrollTrigger.batch(galleryImages.value, {
-        onEnter: (elements) => {
-          gsap.fromTo(elements,
-            { clipPath: "inset(100% 0% 0% 0% round 12px)" },
-            {
-              clipPath: "inset(0% 0% 0% 0% round 12px)",
-              duration: 1.4,
-              stagger: 0.18,
-              ease: "power3.out",
-              overwrite: true
-            }
-          );
-        },
-        start: "top 85%",
-      });
-    }
-
-    // 4. Global Text Reveal on Scroll
-    const textElements = mainContainer.value?.querySelectorAll('.reveal-text');
-    if (textElements) {
-      textElements.forEach((el) => {
-        gsap.fromTo(el,
-          { autoAlpha: 0, y: -20 },
+      if (navbar.value) {
+        gsap.fromTo(navbar.value,
+          { y: -20, autoAlpha: 0 },
           {
-            autoAlpha: 1,
             y: 0,
+            autoAlpha: 1,
             duration: 1,
-            ease: "power3.out",
-            scrollTrigger: {
-              trigger: el,
-              start: "top 60%",
-              toggleActions: "play none none reverse"
-            }
+            ease: 'power3.out',
+            delay: 0.8,
+            clearProps: 'all',
           }
         );
-      });
-    }
 
-    }, mainContainer.value); // Scope to main component
+        ScrollTrigger.create({
+          start: 'top -50',
+          onEnter:     () => navbar.value?.classList.add('navbar--scrolled'),
+          onLeaveBack: () => navbar.value?.classList.remove('navbar--scrolled'),
+        });
+      }
+
+      // 2. Process Section: Horizontal Scroll over Vertical Scroll
+      if (processCardsWrapper.value && processSection.value) {
+        const totalWidth = processCardsWrapper.value.scrollWidth - window.innerWidth;
+
+        gsap.to(processCardsWrapper.value, {
+          x: -totalWidth,
+          ease: 'none',
+          scrollTrigger: {
+            trigger: processSection.value,
+            pin: true,
+            scrub: 1,
+            start: 'top top',
+            end: () => `+=${totalWidth}`,
+          },
+        });
+      }
+
+      // 3. Gallery: Curtain wipe reveal
+      if (galleryImages.value.length > 0) {
+        ScrollTrigger.batch(galleryImages.value, {
+          onEnter: (elements) => {
+            gsap.fromTo(elements,
+              { clipPath: 'inset(100% 0% 0% 0% round 12px)' },
+              {
+                clipPath: 'inset(0% 0% 0% 0% round 12px)',
+                duration: 1.4,
+                stagger: 0.18,
+                ease: 'power3.out',
+                overwrite: true,
+              }
+            );
+          },
+          start: 'top 85%',
+        });
+      }
+
+      // 4. Global Text Reveal on Scroll
+      const textElements = mainContainer.value?.querySelectorAll('.reveal-text');
+      if (textElements) {
+        textElements.forEach((el) => {
+          gsap.fromTo(el,
+            { autoAlpha: 0, y: -20 },
+            {
+              autoAlpha: 1,
+              y: 0,
+              duration: 1,
+              ease: 'power3.out',
+              scrollTrigger: {
+                trigger: el,
+                start: 'top 60%',
+                toggleActions: 'play none none reverse',
+              },
+            }
+          );
+        });
+      }
+
+    }, mainContainer.value);
   }
 
   // Custom cursor (pointer devices only)
@@ -245,19 +276,56 @@ onMounted(() => {
 
 onUnmounted(() => {
   if (ctx) ctx.revert();
-  if (lenis) {
-    lenis.destroy();
-    lenis = null;
-  }
+  if (lenis) { lenis.destroy(); lenis = null; }
   if (cursorMoveHandler) window.removeEventListener('mousemove', cursorMoveHandler);
-  gsap.ticker.remove((time) => {
-    lenis?.raf(time * 1000);
-  });
+  // Use stored reference — not a new anonymous function (#1)
+  if (lenisTickerFn)  { gsap.ticker.remove(lenisTickerFn); lenisTickerFn = null; }
+  if (escHandler)     { window.removeEventListener('keydown', escHandler); escHandler = null; }
 });
 </script>
 
 <template>
+  <!-- Preloader (#17) -->
+  <Transition name="preloader-fade">
+    <div v-if="!preloaderDone" class="preloader" aria-hidden="true">
+      <div class="preloader__ring-wrap">
+        <svg class="preloader__ring" viewBox="0 0 100 100" aria-hidden="true">
+          <circle class="preloader__ring-track" cx="50" cy="50" r="38"/>
+          <circle class="preloader__ring-fill"  cx="50" cy="50" r="38"/>
+        </svg>
+        <span class="preloader__mark">VS</span>
+      </div>
+      <p class="preloader__name">V-STUDIOS</p>
+      <p class="preloader__sub">Creative Studio</p>
+    </div>
+  </Transition>
+
   <div ref="cursor" class="cursor" aria-hidden="true"></div>
+
+  <!-- Mobile menu overlay (#2) -->
+  <Transition name="mobile-menu">
+    <div v-if="menuOpen" class="mobile-menu" role="dialog" aria-modal="true" :aria-label="t('nav.open_menu')">
+      <div class="mobile-menu__backdrop" @click="closeMenu" aria-hidden="true"></div>
+      <nav class="mobile-menu__content">
+        <button class="mobile-menu__close" @click="closeMenu" :aria-label="t('nav.close_menu')">✕</button>
+        <a href="#process" class="mobile-menu__link" @click.prevent="scrollTo('#process')">{{ t('nav.approach') }}</a>
+        <a href="#gallery"  class="mobile-menu__link" @click.prevent="scrollTo('#gallery')">{{ t('nav.gallery') }}</a>
+        <a href="#contact"  class="mobile-menu__link" @click.prevent="scrollTo('#contact')">{{ t('nav.project') }}</a>
+        <div class="mobile-menu__lang">
+          <button
+            v-for="lang in ['fr', 'en', 'es']"
+            :key="lang"
+            class="lang-btn"
+            :class="{ 'lang-btn--active': locale === lang }"
+            :aria-pressed="locale === lang"
+            :aria-label="lang === 'fr' ? 'Français' : lang === 'en' ? 'English' : 'Español'"
+            @click="locale = lang"
+          >{{ lang.toUpperCase() }}</button>
+        </div>
+      </nav>
+    </div>
+  </Transition>
+
   <main ref="mainContainer" class="landing-page dark-mode">
     <!-- NAVIGATION -->
     <nav ref="navbar" class="navbar">
@@ -269,8 +337,8 @@ onUnmounted(() => {
 
         <div class="navbar__menu">
           <a href="#process" class="nav-link" @click.prevent="scrollTo('#process')">{{ t('nav.approach') }}</a>
-          <a href="#gallery" class="nav-link" @click.prevent="scrollTo('#gallery')">{{ t('nav.gallery') }}</a>
-          <a href="#contact" class="nav-link" @click.prevent="scrollTo('#contact')">{{ t('nav.project') }}</a>
+          <a href="#gallery"  class="nav-link" @click.prevent="scrollTo('#gallery')">{{ t('nav.gallery') }}</a>
+          <a href="#contact"  class="nav-link" @click.prevent="scrollTo('#contact')">{{ t('nav.project') }}</a>
         </div>
 
         <div class="navbar__right">
@@ -280,12 +348,24 @@ onUnmounted(() => {
               :key="lang"
               class="lang-btn"
               :class="{ 'lang-btn--active': locale === lang }"
+              :aria-pressed="locale === lang"
+              :aria-label="lang === 'fr' ? 'Français' : lang === 'en' ? 'English' : 'Español'"
               @click="locale = lang"
             >{{ lang.toUpperCase() }}</button>
           </div>
           <button class="navbar__cta" @click="scrollTo('#contact')">
             <span class="cta-text">{{ t('nav.contact') }}</span>
             <span class="cta-arrow">↗</span>
+          </button>
+          <!-- Hamburger (mobile only) (#2) -->
+          <button
+            class="navbar__hamburger"
+            @click="toggleMenu"
+            :aria-label="t('nav.open_menu')"
+            :aria-expanded="menuOpen"
+          >
+            <span></span>
+            <span></span>
           </button>
         </div>
       </div>
@@ -323,15 +403,15 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <!-- HERO INFO BAR -->
+      <!-- HERO INFO BAR — animated counters (#16) -->
       <div class="hero__infobar">
         <div class="info-item">
           <span class="label">{{ t('hero.stat_clients_label') }}</span>
-          <span class="value">{{ t('hero.stat_clients_value') }}</span>
+          <span class="value">{{ heroStats.clients }}<span class="stat-plus">+</span></span>
         </div>
         <div class="info-item">
           <span class="label">{{ t('hero.stat_projects_label') }}</span>
-          <span class="value">{{ t('hero.stat_projects_value') }}</span>
+          <span class="value">{{ heroStats.projects }}<span class="stat-plus">+</span></span>
         </div>
         <div class="info-item">
           <span class="label">{{ t('hero.stat_since_label') }}</span>
@@ -352,8 +432,15 @@ onUnmounted(() => {
           <span class="process__scroll-hint">{{ t('process.scroll_hint') }}</span>
         </div>
       </div>
-      <div ref="processCardsWrapper" class="process__cards">
-        <div class="process-card" v-for="(step, i) in processSteps" :key="i">
+      <div ref="processCardsWrapper" class="process__cards" role="list">
+        <div
+          class="process-card"
+          v-for="(step, i) in processSteps"
+          :key="i"
+          role="listitem"
+          tabindex="0"
+          @focus="scrollToProcessCard(i)"
+        >
           <div class="process-card__inner">
             <div class="process-card__top">
               <span class="process-card__badge">0{{ i + 1 }}</span>
@@ -380,7 +467,10 @@ onUnmounted(() => {
         </div>
         <div class="gallery__header-right">
           <span class="gallery__count reveal-text">{{ t('gallery.count', { count: galleryData.length }) }}</span>
-          <a href="#" class="gallery__view-all reveal-text">{{ t('gallery.view_all') }} <span class="arrow">↗</span></a>
+          <!-- "View all" → scroll to contact instead of # (#15) -->
+          <a href="#contact" class="gallery__view-all reveal-text" @click.prevent="scrollTo('#contact')">
+            {{ t('gallery.view_all') }} <span class="arrow">↗</span>
+          </a>
         </div>
       </div>
 
@@ -393,10 +483,13 @@ onUnmounted(() => {
           ref="galleryImages"
         >
           <div class="gallery__item-inner">
+            <!-- First image eager, rest lazy (#3); explicit dimensions for CLS (#4) -->
             <img
               :src="item.img"
               :alt="t(`gallery.projects.${index}.title`)"
-              loading="lazy"
+              :loading="index === 0 ? 'eager' : 'lazy'"
+              :width="item.width"
+              :height="item.height"
             />
             <div class="gallery__overlay">
               <div class="gallery__overlay-content">
@@ -407,7 +500,7 @@ onUnmounted(() => {
                 </div>
               </div>
             </div>
-            <span class="gallery__index">0{{ index + 1 }}</span>
+            <span class="gallery__index" aria-hidden="true">0{{ index + 1 }}</span>
           </div>
         </div>
       </div>
@@ -434,8 +527,9 @@ onUnmounted(() => {
         </div>
         <div class="footer__right">
           <div class="footer__links">
-            <a href="#">{{ t('footer.privacy') }}</a>
-            <a href="#">{{ t('footer.terms') }}</a>
+            <!-- Placeholder links disabled until real pages exist (#15) -->
+            <a href="#" class="footer__link--placeholder" aria-disabled="true" tabindex="-1">{{ t('footer.privacy') }}</a>
+            <a href="#" class="footer__link--placeholder" aria-disabled="true" tabindex="-1">{{ t('footer.terms') }}</a>
           </div>
         </div>
       </div>
@@ -445,11 +539,9 @@ onUnmounted(() => {
 
 <style lang="scss">
 :root {
-  /* Modern CSS Variables & Dark Mode / Neon theme */
   --color-bg: #10082e;
   --color-text: #f0f0f0;
   --color-accent: #00ffcc;
-  /* Neon cyan accent */
   --color-accent-gradient: linear-gradient(135deg, #00ffcc 0%, #ff00cc 100%);
   --font-primary: 'Inter', 'Helvetica Neue', sans-serif;
   --transition-smooth: 0.4s cubic-bezier(0.25, 1, 0.5, 1);
@@ -464,6 +556,13 @@ onUnmounted(() => {
   padding: 0;
 }
 
+/* Global focus ring (#6) */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
 body {
   background-color: var(--color-bg);
   color: var(--color-text);
@@ -472,33 +571,18 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 
-  /* Smooth Scroll specific fixes */
   &.has-smooth-scrolling {
     overflow: hidden;
   }
 }
 
-html.lenis {
-  height: auto;
-}
+html.lenis { height: auto; }
 
-.lenis.lenis-smooth {
-  scroll-behavior: auto;
-}
+.lenis.lenis-smooth { scroll-behavior: auto; }
+.lenis.lenis-smooth [data-lenis-prevent] { overscroll-behavior: contain; }
+.lenis.lenis-stopped { overflow: hidden; }
+.lenis.lenis-scrolling iframe { pointer-events: none; }
 
-.lenis.lenis-smooth [data-lenis-prevent] {
-  overscroll-behavior: contain;
-}
-
-.lenis.lenis-stopped {
-  overflow: hidden;
-}
-
-.lenis.lenis-scrolling iframe {
-  pointer-events: none;
-}
-
-/* Base Mixins */
 @mixin flex-center {
   display: flex;
   justify-content: center;
@@ -506,10 +590,46 @@ html.lenis {
 }
 
 /* =========================================================================
+   PRELOADER (#17)
+   ========================================================================= */
+.preloader {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  background: var(--color-bg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  pointer-events: none;
+}
+
+.preloader__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  box-shadow: 0 0 20px var(--color-accent), 0 0 40px rgba(0, 255, 204, 0.3);
+  animation: pulse-dot 1.2s ease-in-out infinite;
+}
+
+.preloader__text {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.45em;
+  color: rgba(255, 255, 255, 0.3);
+  text-transform: uppercase;
+}
+
+.preloader-fade-leave-active { transition: opacity 0.5s ease; }
+.preloader-fade-leave-to     { opacity: 0; }
+
+/* =========================================================================
    NAVIGATION
    ========================================================================= */
 @keyframes pulse-dot {
-  0%, 100% { opacity: 1; box-shadow: 0 0 6px var(--color-accent), 0 0 12px rgba(0,255,204,0.4); }
+  0%, 100% { opacity: 1;    box-shadow: 0 0 6px var(--color-accent), 0 0 12px rgba(0,255,204,0.4); }
   50%       { opacity: 0.35; box-shadow: 0 0 3px var(--color-accent); }
 }
 
@@ -573,9 +693,7 @@ html.lenis {
       animation: pulse-dot 2.8s ease-in-out infinite;
     }
 
-    &:hover {
-      opacity: 0.65;
-    }
+    &:hover { opacity: 0.65; }
   }
 
   &__menu {
@@ -584,9 +702,7 @@ html.lenis {
     flex: 1;
     justify-content: center;
 
-    @media (max-width: 768px) {
-      display: none;
-    }
+    @media (max-width: 768px) { display: none; }
 
     .nav-link {
       position: relative;
@@ -595,7 +711,8 @@ html.lenis {
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.18em;
-      color: rgba(255, 255, 255, 0.38);
+      /* Raised from 0.38 to 0.55 for WCAG AA compliance (#9) */
+      color: rgba(255, 255, 255, 0.55);
       text-decoration: none;
       border-radius: 100px;
       transition: color 0.25s ease, background 0.25s ease;
@@ -618,9 +735,7 @@ html.lenis {
         color: #fff;
         background: rgba(255, 255, 255, 0.05);
 
-        &::after {
-          transform: translateX(-50%) scale(1);
-        }
+        &::after { transform: translateX(-50%) scale(1); }
       }
     }
   }
@@ -650,10 +765,7 @@ html.lenis {
     transition: all 0.3s cubic-bezier(0.25, 1, 0.5, 1);
     white-space: nowrap;
 
-    .cta-text {
-      display: inline;
-    }
-
+    .cta-text  { display: inline; }
     .cta-arrow {
       display: inline-block;
       font-size: 0.8rem;
@@ -663,55 +775,65 @@ html.lenis {
 
     &:hover {
       transform: translateY(-2px);
-      box-shadow:
-        0 0 0 3px rgba(0,255,204,0.15),
-        0 8px 24px rgba(0,255,204,0.3);
-
-      .cta-arrow {
-        transform: translate(2px, -2px);
-      }
+      box-shadow: 0 0 0 3px rgba(0,255,204,0.15), 0 8px 24px rgba(0,255,204,0.3);
+      .cta-arrow { transform: translate(2px, -2px); }
     }
 
-    &:active {
-      transform: translateY(0);
-    }
+    &:active { transform: translateY(0); }
   }
 
-  // ── Responsive ────────────────────────────────────────────────────────────
+  /* Hamburger button (#2) */
+  &__hamburger {
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    gap: 5px;
+    width: 34px;
+    height: 34px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 8px;
+    transition: background 0.2s ease;
+
+    span {
+      display: block;
+      width: 100%;
+      height: 1.5px;
+      background: rgba(255, 255, 255, 0.65);
+      border-radius: 1px;
+      transition: background 0.2s ease;
+    }
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.06);
+      span { background: #fff; }
+    }
+
+    @media (max-width: 768px) { display: flex; }
+  }
+
   @media (max-width: 600px) {
     top: 1rem;
     width: 94%;
     padding: 0.45rem 0.45rem 0.45rem 1.1rem;
 
-    &--scrolled {
-      width: 90%;
-    }
+    &--scrolled { width: 90%; }
 
     &__logo {
       font-size: 0.82rem;
       letter-spacing: 0.1em;
-
-      .logo-dot {
-        width: 6px;
-        height: 6px;
-      }
+      .logo-dot { width: 6px; height: 6px; }
     }
 
-    &__right {
-      gap: 0.4rem;
-    }
+    &__right { gap: 0.4rem; }
 
     &__cta {
       padding: 0.58rem 0.65rem;
       gap: 0;
-
-      .cta-text {
-        display: none;
-      }
-
-      .cta-arrow {
-        font-size: 0.9rem;
-      }
+      .cta-text  { display: none; }
+      .cta-arrow { font-size: 0.9rem; }
     }
   }
 }
@@ -733,7 +855,7 @@ html.lenis {
     font-size: 0.6rem;
     font-weight: 700;
     letter-spacing: 0.12em;
-    color: rgba(255, 255, 255, 0.28);
+    color: rgba(255, 255, 255, 0.4);
     cursor: pointer;
     border-radius: 100px;
     transition: all 0.2s ease;
@@ -753,14 +875,93 @@ html.lenis {
 
   @media (max-width: 600px) {
     padding: 0.15rem;
-
-    .lang-btn {
-      padding: 0.28rem 0.42rem;
-      font-size: 0.56rem;
-      letter-spacing: 0.08em;
-    }
+    .lang-btn { padding: 0.28rem 0.42rem; font-size: 0.56rem; letter-spacing: 0.08em; }
   }
 }
+
+/* =========================================================================
+   MOBILE MENU (#2)
+   ========================================================================= */
+.mobile-menu {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+
+  &__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.65);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+  }
+
+  &__content {
+    position: relative;
+    margin-left: auto;
+    width: min(320px, 85vw);
+    height: 100%;
+    background: #0d0820;
+    border-left: 1px solid rgba(255, 255, 255, 0.07);
+    display: flex;
+    flex-direction: column;
+    padding: 1.5rem 2rem 2.5rem;
+    gap: 0.25rem;
+    overflow-y: auto;
+  }
+
+  &__close {
+    align-self: flex-end;
+    background: transparent;
+    border: none;
+    color: rgba(255, 255, 255, 0.45);
+    font-size: 1.1rem;
+    cursor: pointer;
+    padding: 0.5rem;
+    margin-bottom: 1.75rem;
+    border-radius: 8px;
+    transition: color 0.2s ease, background 0.2s ease;
+    line-height: 1;
+
+    &:hover { color: #fff; background: rgba(255, 255, 255, 0.06); }
+  }
+
+  &__link {
+    font-size: 2.2rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: rgba(255, 255, 255, 0.55);
+    text-decoration: none;
+    line-height: 1.2;
+    padding: 0.6rem 0;
+    transition: color 0.25s ease;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+
+    &:hover { color: var(--color-accent); }
+  }
+
+  &__lang {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: auto;
+    padding-top: 2.5rem;
+  }
+}
+
+.mobile-menu-enter-active { transition: opacity 0.3s ease; }
+.mobile-menu-leave-active  { transition: opacity 0.25s ease; }
+.mobile-menu-enter-from,
+.mobile-menu-leave-to      { opacity: 0; }
+
+.mobile-menu-enter-active .mobile-menu__content {
+  transition: transform 0.35s cubic-bezier(0.25, 1, 0.5, 1);
+}
+.mobile-menu-enter-from .mobile-menu__content { transform: translateX(100%); }
+
+.mobile-menu-leave-active .mobile-menu__content {
+  transition: transform 0.25s ease;
+}
+.mobile-menu-leave-to .mobile-menu__content { transform: translateX(100%); }
 
 /* =========================================================================
    CUSTOM CURSOR
@@ -803,9 +1004,12 @@ html.lenis {
   cursor: text;
 }
 
-.landing-page {
-  width: 100%;
+/* Restore visible cursor on keyboard focus (#6) */
+.landing-page *:focus-visible {
+  cursor: auto;
 }
+
+.landing-page { width: 100%; }
 
 .reveal-text {
   visibility: hidden;
@@ -829,20 +1033,18 @@ html.lenis {
     left: -10%;
     width: 120%;
     height: 120%;
-    // Apple aurora mesh gradient — dark mode macOS style
     background:
-      radial-gradient(ellipse at 20% 20%, rgba(130, 80, 255, 1)    0%, transparent 42%),
-      radial-gradient(ellipse at 75% 10%, rgba(60,  150, 255, 1)    0%, transparent 40%),
-      radial-gradient(ellipse at 50% 55%, rgba(255, 255, 255, 0.06) 0%, transparent 50%),
-      radial-gradient(ellipse at 58% 82%, rgba(0,   210, 255, 0.90) 0%, transparent 44%),
-      radial-gradient(ellipse at 10% 78%, rgba(200, 40,  255, 0.85) 0%, transparent 40%),
-      radial-gradient(ellipse at 88% 60%, rgba(90,  30,  230, 0.75) 0%, transparent 36%),
+      radial-gradient(ellipse at 20% 20%, rgba(130, 80, 255, 1)     0%, transparent 42%),
+      radial-gradient(ellipse at 75% 10%, rgba(60,  150, 255, 1)     0%, transparent 40%),
+      radial-gradient(ellipse at 50% 55%, rgba(255, 255, 255, 0.06)  0%, transparent 50%),
+      radial-gradient(ellipse at 58% 82%, rgba(0,   210, 255, 0.90)  0%, transparent 44%),
+      radial-gradient(ellipse at 10% 78%, rgba(200, 40,  255, 0.85)  0%, transparent 40%),
+      radial-gradient(ellipse at 88% 60%, rgba(90,  30,  230, 0.75)  0%, transparent 36%),
       #10082e;
     z-index: 0;
     will-change: transform;
   }
 
-  // Cinematic grain
   &::after {
     content: '';
     position: absolute;
@@ -863,7 +1065,6 @@ html.lenis {
   &__content {
     text-align: center;
     position: relative;
-    /* Necessary for z-index to work */
     z-index: 10;
     padding: 0 5vw;
   }
@@ -882,14 +1083,12 @@ html.lenis {
     .word {
       display: inline-flex;
       overflow: hidden;
-      /* Crucial for the Split-type upward mask reveal */
     }
 
     .char {
       display: inline-block;
       will-change: transform, opacity;
       transform: translateY(100%);
-      /* Subtle gradient text fill for premium feel */
       background: linear-gradient(to bottom, #ffffff 40%, rgba(255, 255, 255, 0.5) 100%);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
@@ -935,10 +1134,7 @@ html.lenis {
         color: #000;
         border: none;
 
-        span {
-          position: relative;
-          z-index: 2;
-        }
+        span { position: relative; z-index: 2; }
 
         .btn-glow {
           position: absolute;
@@ -951,10 +1147,7 @@ html.lenis {
 
         &:hover {
           transform: translateY(-5px);
-
-          .btn-glow {
-            opacity: 1;
-          }
+          .btn-glow { opacity: 1; }
         }
       }
 
@@ -972,7 +1165,6 @@ html.lenis {
     }
   }
 
-  // ── Scroll indicator ───────────────────────────────────────────────────
   .scroll-indicator {
     position: absolute;
     bottom: 7rem;
@@ -1049,6 +1241,12 @@ html.lenis {
         font-weight: 700;
         color: #fff;
         letter-spacing: 0.05em;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .stat-plus {
+        font-size: 0.85em;
+        opacity: 0.7;
       }
     }
   }
@@ -1071,19 +1269,8 @@ html.lenis {
     justify-content: space-between;
     align-items: flex-end;
 
-    &-left {
-      display: flex;
-      flex-direction: column;
-      gap: 0.6rem;
-    }
-
-    &-right {
-      display: flex;
-      flex-direction: column;
-      align-items: flex-end;
-      gap: 0.4rem;
-      padding-bottom: 0.2rem;
-    }
+    &-left { display: flex; flex-direction: column; gap: 0.6rem; }
+    &-right { display: flex; flex-direction: column; align-items: flex-end; gap: 0.4rem; padding-bottom: 0.2rem; }
   }
 
   &__eyebrow {
@@ -1133,10 +1320,10 @@ html.lenis {
     overflow: hidden;
     position: relative;
     box-shadow: 0 40px 80px rgba(0, 0, 0, 0.6);
-    transition: transform 0.45s cubic-bezier(0.25, 1, 0.5, 1),
-                box-shadow 0.45s cubic-bezier(0.25, 1, 0.5, 1);
+    transition:
+      transform   0.45s cubic-bezier(0.25, 1, 0.5, 1),
+      box-shadow  0.45s cubic-bezier(0.25, 1, 0.5, 1);
 
-    // Colored orb — unique per card
     &::before {
       content: '';
       position: absolute;
@@ -1150,7 +1337,6 @@ html.lenis {
       transition: opacity 0.4s ease;
     }
 
-    // Gradient top line
     &::after {
       content: '';
       position: absolute;
@@ -1166,9 +1352,14 @@ html.lenis {
     &:hover {
       transform: translateY(-10px);
       box-shadow: 0 60px 100px rgba(0, 0, 0, 0.7);
-
       &::before { opacity: 0.16; }
       .process-card__tag { border-color: rgba(255, 255, 255, 0.12); color: rgba(255, 255, 255, 0.5); }
+    }
+
+    /* Keyboard focus highlight (#10) */
+    &:focus-visible {
+      outline: 2px solid var(--color-accent);
+      outline-offset: 4px;
     }
 
     &__inner {
@@ -1179,9 +1370,7 @@ html.lenis {
       position: relative;
     }
 
-    &__top {
-      margin-bottom: auto;
-    }
+    &__top { margin-bottom: auto; }
 
     &__badge {
       display: inline-flex;
@@ -1270,18 +1459,10 @@ html.lenis {
     padding-bottom: 1.75rem;
     border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 
-    @media (max-width: 640px) {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 1.5rem;
-    }
+    @media (max-width: 640px) { flex-direction: column; align-items: flex-start; gap: 1.5rem; }
   }
 
-  &__header-left {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-  }
+  &__header-left { display: flex; flex-direction: column; gap: 0.75rem; }
 
   &__eyebrow {
     display: block;
@@ -1314,9 +1495,7 @@ html.lenis {
     align-items: flex-end;
     gap: 0.75rem;
 
-    @media (max-width: 640px) {
-      align-items: flex-start;
-    }
+    @media (max-width: 640px) { align-items: flex-start; }
   }
 
   &__count {
@@ -1337,17 +1516,11 @@ html.lenis {
     text-decoration: none;
     transition: color 0.3s ease;
 
-    .arrow {
-      display: inline-block;
-      transition: transform 0.3s ease;
-    }
+    .arrow { display: inline-block; transition: transform 0.3s ease; }
 
     &:hover {
       color: var(--color-accent);
-
-      .arrow {
-        transform: translate(3px, -3px);
-      }
+      .arrow { transform: translate(3px, -3px); }
     }
   }
 
@@ -1357,14 +1530,8 @@ html.lenis {
     grid-template-rows: 38vh 38vh;
     gap: 1rem;
 
-    @media (max-width: 992px) {
-      grid-template-columns: 1fr 1fr;
-      grid-template-rows: auto;
-    }
-
-    @media (max-width: 640px) {
-      grid-template-columns: 1fr;
-    }
+    @media (max-width: 992px) { grid-template-columns: 1fr 1fr; grid-template-rows: auto; }
+    @media (max-width: 640px) { grid-template-columns: 1fr; }
   }
 
   &__item {
@@ -1372,32 +1539,13 @@ html.lenis {
     clip-path: inset(100% 0% 0% 0% round 12px);
     will-change: clip-path;
 
-    &--0 {
-      grid-column: 1;
-      grid-row: 1 / 3;
-    }
-
-    &--1 {
-      grid-column: 2;
-      grid-row: 1;
-    }
-
-    &--2 {
-      grid-column: 2;
-      grid-row: 2;
-    }
-
-    &--3 {
-      grid-column: 3;
-      grid-row: 1 / 3;
-    }
+    &--0 { grid-column: 1; grid-row: 1 / 3; }
+    &--1 { grid-column: 2; grid-row: 1; }
+    &--2 { grid-column: 2; grid-row: 2; }
+    &--3 { grid-column: 3; grid-row: 1 / 3; }
 
     @media (max-width: 992px) {
-      &--0, &--1, &--2, &--3 {
-        grid-column: auto;
-        grid-row: auto;
-        aspect-ratio: 3 / 4;
-      }
+      &--0, &--1, &--2, &--3 { grid-column: auto; grid-row: auto; aspect-ratio: 3 / 4; }
     }
   }
 
@@ -1418,29 +1566,15 @@ html.lenis {
       display: block;
     }
 
-    &:hover img {
-      transform: scale(1.14);
-    }
-
-    &:hover .gallery__overlay-content {
-      transform: translateY(0);
-      opacity: 1;
-    }
-
-    &:hover .gallery__index {
-      opacity: 0;
-    }
+    &:hover img { transform: scale(1.14); }
+    &:hover .gallery__overlay-content { transform: translateY(0); opacity: 1; }
+    &:hover .gallery__index { opacity: 0; }
   }
 
   &__overlay {
     position: absolute;
     inset: 0;
-    background: linear-gradient(
-      to top,
-      rgba(0, 0, 0, 0.88) 0%,
-      rgba(0, 0, 0, 0.35) 45%,
-      transparent 72%
-    );
+    background: linear-gradient(to top, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.35) 45%, transparent 72%);
     display: flex;
     align-items: flex-end;
     padding: 1.75rem;
@@ -1469,12 +1603,7 @@ html.lenis {
     background: rgba(0, 255, 204, 0.06);
   }
 
-  &__meta {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-end;
-    gap: 0.5rem;
-  }
+  &__meta { display: flex; justify-content: space-between; align-items: flex-end; gap: 0.5rem; }
 
   &__item-title {
     font-size: clamp(0.95rem, 1.4vw, 1.35rem);
@@ -1514,10 +1643,7 @@ html.lenis {
   background-color: var(--color-bg);
   position: relative;
 
-  &__container {
-    max-width: 1400px;
-    margin: 0 auto;
-  }
+  &__container { max-width: 1400px; margin: 0 auto; }
 
   &__header {
     margin-bottom: clamp(3rem, 10vh, 6rem);
@@ -1528,7 +1654,6 @@ html.lenis {
       letter-spacing: -0.03em;
     }
   }
-
 }
 
 /* =========================================================================
@@ -1547,10 +1672,7 @@ html.lenis {
     align-items: center;
     gap: 2rem;
 
-    @media (max-width: 768px) {
-      flex-direction: column;
-      text-align: center;
-    }
+    @media (max-width: 768px) { flex-direction: column; text-align: center; }
   }
 
   p {
@@ -1573,10 +1695,16 @@ html.lenis {
       color: rgba(255, 255, 255, 0.3);
       transition: color 0.3s ease;
 
-      &:hover {
-        color: var(--color-accent);
-      }
+      &:hover { color: var(--color-accent); }
     }
+  }
+
+  /* Placeholder links (#15) */
+  &__link--placeholder {
+    opacity: 0.4;
+    pointer-events: none;
+
+    &:hover { color: rgba(255, 255, 255, 0.3) !important; }
   }
 }
 </style>

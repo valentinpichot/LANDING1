@@ -4,6 +4,8 @@ export default {
     gallery: 'Galería',
     project: 'Proyecto',
     contact: 'Contacto',
+    open_menu: 'Abrir menú',
+    close_menu: 'Cerrar menú',
   },
   hero: {
     subtitle: 'Creamos sitios web que marcan la diferencia.',
@@ -21,6 +23,11 @@ export default {
     title: 'Nuestro Enfoque',
     steps_label: 'pasos',
     scroll_hint: '↔ scroll',
+    tags: [
+      ['UX Research', 'Moodboard', 'Taller'],
+      ['Figma', 'GSAP', 'Motion'],
+      ['Vue 3', 'Lighthouse 100', 'Core Web Vitals'],
+    ],
     steps: [
       {
         title: 'Estrategia & Concepción',

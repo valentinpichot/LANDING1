@@ -4,6 +4,8 @@ export default {
     gallery: 'Gallery',
     project: 'Project',
     contact: 'Contact',
+    open_menu: 'Open menu',
+    close_menu: 'Close menu',
   },
   hero: {
     subtitle: 'We craft websites that make a difference.',
@@ -21,6 +23,11 @@ export default {
     title: 'Our Approach',
     steps_label: 'steps',
     scroll_hint: '↔ scroll',
+    tags: [
+      ['UX Research', 'Moodboard', 'Workshop'],
+      ['Figma', 'GSAP', 'Motion'],
+      ['Vue 3', 'Lighthouse 100', 'Core Web Vitals'],
+    ],
     steps: [
       {
         title: 'Strategy & Discovery',

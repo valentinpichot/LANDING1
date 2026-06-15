@@ -10,84 +10,122 @@ gsap.registerPlugin(ScrollTrigger);
 
 const { t, tm, locale } = useI18n();
 
-// Persist locale + keep html[lang] in sync (#8)
+// Persist locale, sync html[lang] and document.title (#8, #13)
 watch(locale, (val) => {
   localStorage.setItem('locale', val as string);
   document.documentElement.lang = val as string;
+  document.title = t('meta.title');
 }, { immediate: true });
 
-const mainContainer = ref<HTMLElement | null>(null);
-const heroSection   = ref<HTMLElement | null>(null);
-const heroTitle     = ref<HTMLElement | null>(null);
-const heroBg        = ref<HTMLElement | null>(null);
-const heroBtns      = ref<HTMLElement | null>(null);
-const processSection       = ref<HTMLElement | null>(null);
-const processCardsWrapper  = ref<HTMLElement | null>(null);
-const gallerySection  = ref<HTMLElement | null>(null);
-const galleryImages   = ref<HTMLElement[]>([]);
-const contactSection  = ref<HTMLElement | null>(null);
-const navbar = ref<HTMLElement | null>(null);
-const cursor = ref<HTMLElement | null>(null);
+// ── Refs (dead refs removed: gallerySection, contactSection) (#10) ──────────
+const mainContainer      = ref<HTMLElement | null>(null);
+const heroSection        = ref<HTMLElement | null>(null);
+const heroTitle          = ref<HTMLElement | null>(null);
+const heroBtns           = ref<HTMLElement | null>(null);
+const processSection     = ref<HTMLElement | null>(null);
+const processCardsWrapper = ref<HTMLElement | null>(null);
+const galleryImages      = ref<HTMLElement[]>([]);
+const navbar             = ref<HTMLElement | null>(null);
+const cursor             = ref<HTMLElement | null>(null);
 
-// Mobile menu (#2)
-const menuOpen  = ref(false);
-const toggleMenu = () => { menuOpen.value = !menuOpen.value; };
-const closeMenu  = () => { menuOpen.value = false; };
+// ── Mobile menu (#3, #4) ─────────────────────────────────────────────────────
+const menuOpen = ref(false);
 
-// Preloader (#17)
+const toggleMenu = () => {
+  menuOpen.value = !menuOpen.value;
+  // Freeze / resume Lenis behind the drawer (#3)
+  if (menuOpen.value) lenis?.stop();
+  else lenis?.start();
+};
+
+const closeMenu = () => {
+  menuOpen.value = false;
+  lenis?.start(); // always restart Lenis on close (#3)
+};
+
+// ── Preloader ────────────────────────────────────────────────────────────────
 const preloaderDone = ref(false);
 
-// Hero stat counters (#16)
+// ── Hero stat counters ───────────────────────────────────────────────────────
 const heroStats = reactive({ clients: 0, projects: 0 });
 
-// Gallery data with explicit dimensions (#4)
+// ── Hero title as computed chars — no longer hardcoded HTML (#15) ────────────
+const STUDIO_NAME   = 'V-STUDIOS';
+const STUDIO_SUFFIX = 'DEMO';
+const heroWords = computed(() =>
+  [STUDIO_NAME, STUDIO_SUFFIX].map(word => [...word])
+);
+
+// ── Gallery data ─────────────────────────────────────────────────────────────
 const galleryData = [
-  { img: 'https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?q=80&w=800&h=1200&auto=format&fit=crop', year: '2025', width: 800, height: 1200 },
+  { img: 'https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?q=80&w=800&h=1200&auto=format&fit=crop', year: '2025', width: 800,  height: 1200 },
   { img: 'https://images.unsplash.com/photo-1576091160550-2173dba999ef?q=80&w=1000&h=700&auto=format&fit=crop',  year: '2024', width: 1000, height: 700  },
   { img: 'https://images.unsplash.com/photo-1507842217343-583bb7270b66?q=80&w=1000&h=700&auto=format&fit=crop',  year: '2026', width: 1000, height: 700  },
-  { img: 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=800&h=1200&auto=format&fit=crop',  year: '2025', width: 800, height: 1200 },
+  { img: 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=800&h=1200&auto=format&fit=crop',  year: '2025', width: 800,  height: 1200 },
 ];
 
+// ── i18n computed ─────────────────────────────────────────────────────────────
 const processSteps = computed(
   () => tm('process.steps') as Array<{ title: string; description: string }>
 );
-
-// processTags now come from i18n (#13)
 const processTags = computed(
   () => tm('process.tags') as Array<string[]>
 );
 
+// ── Active nav section (#5) ──────────────────────────────────────────────────
+const activeSection = ref<string>('home');
+
+function updateActiveSection() {
+  const ids  = ['home', 'process', 'gallery', 'contact'];
+  const mid  = window.scrollY + window.innerHeight * 0.4;
+  for (let i = ids.length - 1; i >= 0; i--) {
+    const el = document.getElementById(ids[i]);
+    if (el && el.offsetTop <= mid) { activeSection.value = ids[i]; return; }
+  }
+  activeSection.value = 'home';
+}
+
+// ── Internal vars ─────────────────────────────────────────────────────────────
 let ctx: gsap.Context;
 let lenis: Lenis | null = null;
 let cursorMoveHandler: ((e: MouseEvent) => void) | null = null;
-let lenisTickerFn:    ((time: number) => void) | null = null;  // fix #1
+let lenisTickerFn:    ((time: number) => void) | null = null;
 let escHandler:       ((e: KeyboardEvent) => void) | null = null;
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
 const scrollTo = (target: string) => {
+  closeMenu();            // restarts Lenis before scroll (#3)
   lenis?.scrollTo(target, { duration: 1 });
-  closeMenu();
 };
 
-// Scroll to the right page position so GSAP reveals a pinned process card (#10)
 const scrollToProcessCard = (index: number) => {
   if (!processSection.value || !processCardsWrapper.value || !lenis) return;
-  const totalWidth = processCardsWrapper.value.scrollWidth - window.innerWidth;
-  const fraction   = processSteps.value.length > 1 ? index / (processSteps.value.length - 1) : 0;
-  lenis.scrollTo(processSection.value.offsetTop + fraction * totalWidth, { duration: 0.8 });
+  const total    = processCardsWrapper.value.scrollWidth - window.innerWidth;
+  const fraction = processSteps.value.length > 1 ? index / (processSteps.value.length - 1) : 0;
+  lenis.scrollTo(processSection.value.offsetTop + fraction * total, { duration: 0.8 });
 };
 
+// ── Mount ─────────────────────────────────────────────────────────────────────
 onMounted(() => {
-  // Preloader: hide after 950 ms — let the ring animation complete (#17)
-  setTimeout(() => { preloaderDone.value = true; }, 950);
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  // Close mobile menu on Escape (#2)
+  // Preloader: skip entirely for reduced-motion users (#8)
+  if (prefersReducedMotion) {
+    preloaderDone.value  = true;
+    heroStats.clients    = 80;
+    heroStats.projects   = 150;
+  } else {
+    setTimeout(() => { preloaderDone.value = true; }, 950);
+  }
+
+  // Escape closes mobile menu
   escHandler = (e: KeyboardEvent) => { if (e.key === 'Escape') closeMenu(); };
   window.addEventListener('keydown', escHandler);
 
-  // Initialize Lenis
+  // Lenis smooth scroll — renamed easing param to avoid shadowing i18n `t` (#11)
   lenis = new Lenis({
     duration: 1.2,
-    easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+    easing: (progress) => Math.min(1, 1.001 - Math.pow(2, -10 * progress)),
     orientation: 'vertical',
     gestureOrientation: 'vertical',
     smoothWheel: true,
@@ -96,102 +134,119 @@ onMounted(() => {
     infinite: false,
   });
 
-  lenis.on('scroll', ScrollTrigger.update);
+  // Active section tracking via Lenis scroll event (#5)
+  lenis.on('scroll', () => {
+    ScrollTrigger.update();
+    updateActiveSection();
+  });
+  updateActiveSection(); // set initial state
 
-  // Store reference so we can properly remove it (#1)
   lenisTickerFn = (time) => { lenis?.raf(time * 1000); };
   gsap.ticker.add(lenisTickerFn);
   gsap.ticker.lagSmoothing(0);
 
   if (mainContainer.value) {
     ctx = gsap.context(() => {
-      // 1. Hero Effects
-      const tl = gsap.timeline();
 
-      if (heroBg.value && heroSection.value) {
-        gsap.to(heroBg.value, {
-          scale: 1.15,
-          duration: 20,
-          ease: 'none',
-          repeat: -1,
-          yoyo: true,
-        });
+      // ── Animations — only without reduced motion (#8) ──────────────────────
+      if (!prefersReducedMotion) {
+        const tl = gsap.timeline();
 
-        gsap.to(heroBg.value, {
-          yPercent: 20,
-          ease: 'none',
-          scrollTrigger: {
-            trigger: heroSection.value,
-            start: 'top top',
-            end: 'bottom top',
-            scrub: true,
-          },
-        });
-      }
+        // Hero ambient blobs — slow organic drift
+        if (heroSection.value) {
+          const blobs = heroSection.value.querySelectorAll('.hero__blob');
+          blobs.forEach((blob, i) => {
+            gsap.to(blob, {
+              x: `${(i % 2 === 0 ? 1 : -1) * gsap.utils.random(40, 80)}`,
+              y: `${gsap.utils.random(30, 70)}`,
+              duration: gsap.utils.random(14, 22),
+              ease: 'sine.inOut',
+              repeat: -1,
+              yoyo: true,
+              delay: i * 2.2,
+            });
+          });
 
-      if (heroTitle.value) {
-        const letters = heroTitle.value.querySelectorAll('.char');
+          // Spotlight — follows cursor inside hero
+          const spotlight = heroSection.value.querySelector('.hero__spotlight') as HTMLElement | null;
+          if (spotlight) {
+            heroSection.value.addEventListener('mousemove', (e: MouseEvent) => {
+              const rect = heroSection.value!.getBoundingClientRect();
+              const x = ((e.clientX - rect.left) / rect.width) * 100;
+              const y = ((e.clientY - rect.top) / rect.height) * 100;
+              heroSection.value!.style.setProperty('--mouse-x', `${x}%`);
+              heroSection.value!.style.setProperty('--mouse-y', `${y}%`);
+            });
+          }
+        }
 
-        tl.from(letters, {
-          y: '100%',
-          opacity: 0,
-          duration: 1.2,
-          stagger: 0.04,
-          ease: 'power4.out',
-          delay: 0.2,
-        })
-          .from('.hero__subtitle', {
-            y: 20,
-            autoAlpha: 0,
-            duration: 0.8,
-            ease: 'power3.out',
-          }, '-=0.6');
+        // Hero title char reveal + descriptor + CTAs + stats + counters
+        if (heroTitle.value) {
+          const letters = heroTitle.value.querySelectorAll('.char');
+          tl.from(letters, { y: '110%', opacity: 0, duration: 1.3, stagger: 0.03, ease: 'power4.out', delay: 0.1 })
+            .from('.hero__eyebrow', { y: 12, autoAlpha: 0, duration: 0.7, ease: 'power3.out' }, 0.3)
+            .from('.hero__descriptor', { y: 16, autoAlpha: 0, duration: 0.8, ease: 'power3.out' }, '-=0.5')
+            .from('.hero__ticker', { autoAlpha: 0, duration: 0.6, ease: 'power2.out' }, '-=0.4');
 
-        if (heroBtns.value) {
-          const btns = heroBtns.value.querySelectorAll('.btn');
-          tl.fromTo(btns,
-            { y: 20, autoAlpha: 0 },
-            {
-              y: 0,
-              autoAlpha: 1,
-              duration: 0.8,
-              stagger: 0.15,
-              ease: 'power3.out',
-              clearProps: 'all',
-            },
-            '-=0.4'
+          if (heroBtns.value) {
+            tl.fromTo(heroBtns.value.querySelectorAll('.hero__cta-primary, .hero__cta-ghost'),
+              { y: 18, autoAlpha: 0 },
+              { y: 0, autoAlpha: 1, duration: 0.8, stagger: 0.14, ease: 'power3.out', clearProps: 'all' },
+              '-=0.35'
+            );
+          }
+
+          tl.from('.hero__bottom', { autoAlpha: 0, y: 14, duration: 1, ease: 'power3.out' }, '-=0.4')
+            .to(heroStats, { clients: 80, projects: 150, duration: 2, ease: 'power2.out', snap: { clients: 1, projects: 1 } }, '<0.2');
+        }
+
+        // Navbar entrance
+        if (navbar.value) {
+          gsap.fromTo(navbar.value,
+            { y: -20, autoAlpha: 0 },
+            { y: 0, autoAlpha: 1, duration: 1, ease: 'power3.out', delay: 0.8, clearProps: 'all' }
           );
         }
 
-        // Infobar reveal then immediately kick off counter (#16)
-        tl.from('.hero__infobar', {
-          autoAlpha: 0,
-          y: 20,
-          duration: 1,
-          ease: 'power3.out',
-        }, '-=0.4')
-          .to(heroStats, {
-            clients: 80,
-            projects: 150,
-            duration: 2,
-            ease: 'power2.out',
-            snap: { clients: 1, projects: 1 },
-          }, '<0.3');
+        // Gallery curtain wipe reveal
+        if (galleryImages.value.length > 0) {
+          ScrollTrigger.batch(galleryImages.value, {
+            onEnter: (elements) => {
+              gsap.fromTo(elements,
+                { clipPath: 'inset(100% 0% 0% 0% round 12px)' },
+                { clipPath: 'inset(0% 0% 0% 0% round 12px)', duration: 1.4, stagger: 0.18, ease: 'power3.out', overwrite: true }
+              );
+            },
+            start: 'top 85%',
+          });
+        }
+
+        // Global text reveals
+        mainContainer.value?.querySelectorAll('.reveal-text').forEach((el) => {
+          gsap.fromTo(el,
+            { autoAlpha: 0, y: -20 },
+            { autoAlpha: 1, y: 0, duration: 1, ease: 'power3.out',
+              scrollTrigger: { trigger: el, start: 'top 60%', toggleActions: 'play none none reverse' } }
+          );
+        });
+
+      } else {
+        // ── Reduced-motion fallback: show everything instantly (#8) ──────────
+        mainContainer.value?.querySelectorAll('.reveal-text').forEach((el) => {
+          gsap.set(el, { autoAlpha: 1, y: 0, clearProps: 'all' });
+        });
+        if (heroTitle.value) {
+          heroTitle.value.querySelectorAll('.char').forEach((el) => {
+            gsap.set(el, { y: 0, opacity: 1, clearProps: 'all' });
+          });
+        }
+        galleryImages.value.forEach((el) => {
+          gsap.set(el, { clipPath: 'none' });
+        });
       }
 
+      // ── Always: navbar scrolled class ───────────────────────────────────────
       if (navbar.value) {
-        gsap.fromTo(navbar.value,
-          { y: -20, autoAlpha: 0 },
-          {
-            y: 0,
-            autoAlpha: 1,
-            duration: 1,
-            ease: 'power3.out',
-            delay: 0.8,
-            clearProps: 'all',
-          }
-        );
-
         ScrollTrigger.create({
           start: 'top -50',
           onEnter:     () => navbar.value?.classList.add('navbar--scrolled'),
@@ -199,60 +254,21 @@ onMounted(() => {
         });
       }
 
-      // 2. Process Section: Horizontal Scroll over Vertical Scroll
+      // ── Always: process horizontal scroll pin ────────────────────────────────
+      // Uses function-based values + invalidateOnRefresh to survive window resize (#1)
       if (processCardsWrapper.value && processSection.value) {
-        const totalWidth = processCardsWrapper.value.scrollWidth - window.innerWidth;
-
+        const getTotal = () => processCardsWrapper.value!.scrollWidth - window.innerWidth;
         gsap.to(processCardsWrapper.value, {
-          x: -totalWidth,
+          x: () => -getTotal(),
           ease: 'none',
           scrollTrigger: {
             trigger: processSection.value,
             pin: true,
             scrub: 1,
             start: 'top top',
-            end: () => `+=${totalWidth}`,
+            end: () => `+=${getTotal()}`,
+            invalidateOnRefresh: true,
           },
-        });
-      }
-
-      // 3. Gallery: Curtain wipe reveal
-      if (galleryImages.value.length > 0) {
-        ScrollTrigger.batch(galleryImages.value, {
-          onEnter: (elements) => {
-            gsap.fromTo(elements,
-              { clipPath: 'inset(100% 0% 0% 0% round 12px)' },
-              {
-                clipPath: 'inset(0% 0% 0% 0% round 12px)',
-                duration: 1.4,
-                stagger: 0.18,
-                ease: 'power3.out',
-                overwrite: true,
-              }
-            );
-          },
-          start: 'top 85%',
-        });
-      }
-
-      // 4. Global Text Reveal on Scroll
-      const textElements = mainContainer.value?.querySelectorAll('.reveal-text');
-      if (textElements) {
-        textElements.forEach((el) => {
-          gsap.fromTo(el,
-            { autoAlpha: 0, y: -20 },
-            {
-              autoAlpha: 1,
-              y: 0,
-              duration: 1,
-              ease: 'power3.out',
-              scrollTrigger: {
-                trigger: el,
-                start: 'top 60%',
-                toggleActions: 'play none none reverse',
-              },
-            }
-          );
         });
       }
 
@@ -275,21 +291,26 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-  if (ctx) ctx.revert();
-  if (lenis) { lenis.destroy(); lenis = null; }
+  if (ctx)             ctx.revert();
+  if (lenis)           { lenis.destroy(); lenis = null; }
   if (cursorMoveHandler) window.removeEventListener('mousemove', cursorMoveHandler);
-  // Use stored reference — not a new anonymous function (#1)
-  if (lenisTickerFn)  { gsap.ticker.remove(lenisTickerFn); lenisTickerFn = null; }
-  if (escHandler)     { window.removeEventListener('keydown', escHandler); escHandler = null; }
+  if (lenisTickerFn)   { gsap.ticker.remove(lenisTickerFn); lenisTickerFn = null; }
+  if (escHandler)      { window.removeEventListener('keydown', escHandler); escHandler = null; }
 });
 </script>
 
 <template>
-  <!-- Preloader (#17) -->
+  <!-- Preloader -->
   <Transition name="preloader-fade">
     <div v-if="!preloaderDone" class="preloader" aria-hidden="true">
       <div class="preloader__ring-wrap">
         <svg class="preloader__ring" viewBox="0 0 100 100" aria-hidden="true">
+          <defs>
+            <linearGradient id="plGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%"   stop-color="#00ffcc"/>
+              <stop offset="100%" stop-color="#ff00cc"/>
+            </linearGradient>
+          </defs>
           <circle class="preloader__ring-track" cx="50" cy="50" r="38"/>
           <circle class="preloader__ring-fill"  cx="50" cy="50" r="38"/>
         </svg>
@@ -302,15 +323,15 @@ onUnmounted(() => {
 
   <div ref="cursor" class="cursor" aria-hidden="true"></div>
 
-  <!-- Mobile menu overlay (#2) -->
+  <!-- Mobile menu (#2) -->
   <Transition name="mobile-menu">
     <div v-if="menuOpen" class="mobile-menu" role="dialog" aria-modal="true" :aria-label="t('nav.open_menu')">
       <div class="mobile-menu__backdrop" @click="closeMenu" aria-hidden="true"></div>
       <nav class="mobile-menu__content">
         <button class="mobile-menu__close" @click="closeMenu" :aria-label="t('nav.close_menu')">✕</button>
-        <a href="#process" class="mobile-menu__link" @click.prevent="scrollTo('#process')">{{ t('nav.approach') }}</a>
-        <a href="#gallery"  class="mobile-menu__link" @click.prevent="scrollTo('#gallery')">{{ t('nav.gallery') }}</a>
-        <a href="#contact"  class="mobile-menu__link" @click.prevent="scrollTo('#contact')">{{ t('nav.project') }}</a>
+        <a href="#process" class="mobile-menu__link" :class="{ 'is-active': activeSection === 'process' }" @click.prevent="scrollTo('#process')">{{ t('nav.approach') }}</a>
+        <a href="#gallery"  class="mobile-menu__link" :class="{ 'is-active': activeSection === 'gallery'  }" @click.prevent="scrollTo('#gallery')">{{ t('nav.gallery') }}</a>
+        <a href="#contact"  class="mobile-menu__link" :class="{ 'is-active': activeSection === 'contact'  }" @click.prevent="scrollTo('#contact')">{{ t('nav.project') }}</a>
         <div class="mobile-menu__lang">
           <button
             v-for="lang in ['fr', 'en', 'es']"
@@ -336,9 +357,10 @@ onUnmounted(() => {
         </a>
 
         <div class="navbar__menu">
-          <a href="#process" class="nav-link" @click.prevent="scrollTo('#process')">{{ t('nav.approach') }}</a>
-          <a href="#gallery"  class="nav-link" @click.prevent="scrollTo('#gallery')">{{ t('nav.gallery') }}</a>
-          <a href="#contact"  class="nav-link" @click.prevent="scrollTo('#contact')">{{ t('nav.project') }}</a>
+          <!-- Active state on nav links (#5) -->
+          <a href="#process" class="nav-link" :class="{ 'is-active': activeSection === 'process' }" @click.prevent="scrollTo('#process')">{{ t('nav.approach') }}</a>
+          <a href="#gallery"  class="nav-link" :class="{ 'is-active': activeSection === 'gallery'  }" @click.prevent="scrollTo('#gallery')">{{ t('nav.gallery') }}</a>
+          <a href="#contact"  class="nav-link" :class="{ 'is-active': activeSection === 'contact'  }" @click.prevent="scrollTo('#contact')">{{ t('nav.project') }}</a>
         </div>
 
         <div class="navbar__right">
@@ -357,13 +379,15 @@ onUnmounted(() => {
             <span class="cta-text">{{ t('nav.contact') }}</span>
             <span class="cta-arrow">↗</span>
           </button>
-          <!-- Hamburger (mobile only) (#2) -->
+          <!-- Hamburger — 3 bars + animates to × when open (#4) -->
           <button
             class="navbar__hamburger"
+            :class="{ 'is-open': menuOpen }"
             @click="toggleMenu"
             :aria-label="t('nav.open_menu')"
             :aria-expanded="menuOpen"
           >
+            <span></span>
             <span></span>
             <span></span>
           </button>
@@ -372,56 +396,81 @@ onUnmounted(() => {
     </nav>
 
     <!-- HERO SECTION -->
-    <section ref="heroSection" class="hero" id="home">
-      <div ref="heroBg" class="hero__bg"></div>
-      <div class="hero__overlay"></div>
+    <section ref="heroSection" class="hero" id="home" aria-label="Hero">
+      <!-- Layered ambient background -->
+      <div class="hero__canvas" aria-hidden="true">
+        <div class="hero__blob hero__blob--cyan"></div>
+        <div class="hero__blob hero__blob--violet"></div>
+        <div class="hero__blob hero__blob--rose"></div>
+      </div>
+      <div class="hero__spotlight" aria-hidden="true"></div>
+      <div class="hero__grid" aria-hidden="true"></div>
+      <div class="hero__vignette" aria-hidden="true"></div>
+      <div class="hero__grain" aria-hidden="true"></div>
 
-      <div class="hero__content">
+      <!-- Main stage -->
+      <div class="hero__stage">
+        <div class="hero__eyebrow" aria-hidden="true">
+          <span class="hero__eyebrow-tag">Creative Studio</span>
+          <span class="hero__eyebrow-sep">·</span>
+          <span>Est. 2019</span>
+        </div>
+
         <h1 ref="heroTitle" class="hero__title">
-          <span class="word">
-            <span class="char">V</span><span class="char">-</span><span class="char">S</span><span class="char">T</span><span class="char">U</span><span class="char">D</span><span class="char">I</span><span class="char">O</span><span class="char">S</span>
-          </span>
-          <span class="word">
-            <span class="char">D</span><span class="char">E</span><span class="char">M</span><span class="char">O</span>
+          <span class="hero__word" v-for="(chars, wi) in heroWords" :key="wi">
+            <span class="char" v-for="(char, ci) in chars" :key="`${wi}-${ci}`">{{ char }}</span>
           </span>
         </h1>
-        <p class="hero__subtitle">{{ t('hero.subtitle') }}</p>
 
-        <div ref="heroBtns" class="hero__ctas">
-          <button class="btn btn--primary" @click="scrollTo('#contact')">
+        <p class="hero__descriptor">{{ t('hero.subtitle') }}</p>
+
+        <div class="hero__ticker" aria-hidden="true">
+          <div class="hero__ticker-track">
+            <span v-for="n in 4" :key="n">Design · Motion · Vue · GSAP · Performance · Branding ·&nbsp;</span>
+          </div>
+        </div>
+
+        <div ref="heroBtns" class="hero__actions">
+          <button class="hero__cta-primary" @click="scrollTo('#contact')">
             <span>{{ t('hero.cta_primary') }}</span>
-            <div class="btn-glow"></div>
+            <span class="hero__cta-icon" aria-hidden="true">↗</span>
           </button>
-          <button class="btn btn--secondary" @click="scrollTo('#gallery')">{{ t('hero.cta_secondary') }}</button>
+          <button class="hero__cta-ghost" @click="scrollTo('#gallery')">
+            {{ t('hero.cta_secondary') }}
+            <span class="hero__cta-line"></span>
+          </button>
         </div>
       </div>
 
-      <!-- SCROLL INDICATOR -->
-      <div class="scroll-indicator" aria-hidden="true">
-        <div class="scroll-indicator__line">
-          <div class="scroll-indicator__drop"></div>
+      <!-- Bottom strip: stats + scroll badge -->
+      <div class="hero__bottom">
+        <div class="hero__stats">
+          <div class="hero__stat">
+            <span class="hero__stat-num">{{ heroStats.clients }}<sup>+</sup></span>
+            <span class="hero__stat-lbl">{{ t('hero.stat_clients_label') }}</span>
+          </div>
+          <div class="hero__stat-sep" aria-hidden="true"></div>
+          <div class="hero__stat">
+            <span class="hero__stat-num">{{ heroStats.projects }}<sup>+</sup></span>
+            <span class="hero__stat-lbl">{{ t('hero.stat_projects_label') }}</span>
+          </div>
+          <div class="hero__stat-sep" aria-hidden="true"></div>
+          <div class="hero__stat">
+            <span class="hero__stat-num">{{ t('hero.stat_since_value') }}</span>
+            <span class="hero__stat-lbl">{{ t('hero.stat_since_label') }}</span>
+          </div>
         </div>
-      </div>
-
-      <!-- HERO INFO BAR — animated counters (#16) -->
-      <div class="hero__infobar">
-        <div class="info-item">
-          <span class="label">{{ t('hero.stat_clients_label') }}</span>
-          <span class="value">{{ heroStats.clients }}<span class="stat-plus">+</span></span>
-        </div>
-        <div class="info-item">
-          <span class="label">{{ t('hero.stat_projects_label') }}</span>
-          <span class="value">{{ heroStats.projects }}<span class="stat-plus">+</span></span>
-        </div>
-        <div class="info-item">
-          <span class="label">{{ t('hero.stat_since_label') }}</span>
-          <span class="value">{{ t('hero.stat_since_value') }}</span>
+        <div class="hero__scroll-badge" aria-hidden="true">
+          <span class="hero__scroll-ring">
+            <span class="hero__scroll-bead"></span>
+          </span>
+          <span class="hero__scroll-text">Scroll</span>
         </div>
       </div>
     </section>
 
-    <!-- PROCESS SECTION -->
-    <section ref="processSection" class="process" id="process">
+    <!-- PROCESS SECTION (#9 aria-label) -->
+    <section ref="processSection" class="process" id="process" :aria-label="t('process.title')">
       <div class="process__header">
         <div class="process__header-left">
           <span class="process__eyebrow">{{ t('process.eyebrow') }}</span>
@@ -458,8 +507,8 @@ onUnmounted(() => {
       </div>
     </section>
 
-    <!-- GALLERY SECTION -->
-    <section ref="gallerySection" class="gallery" id="gallery">
+    <!-- GALLERY SECTION (#9 aria-label, #7 clickable items) -->
+    <section class="gallery" id="gallery" :aria-label="t('gallery.title_main')">
       <div class="gallery__header">
         <div class="gallery__header-left">
           <span class="gallery__eyebrow">{{ t('gallery.eyebrow') }}</span>
@@ -467,7 +516,6 @@ onUnmounted(() => {
         </div>
         <div class="gallery__header-right">
           <span class="gallery__count reveal-text">{{ t('gallery.count', { count: galleryData.length }) }}</span>
-          <!-- "View all" → scroll to contact instead of # (#15) -->
           <a href="#contact" class="gallery__view-all reveal-text" @click.prevent="scrollTo('#contact')">
             {{ t('gallery.view_all') }} <span class="arrow">↗</span>
           </a>
@@ -482,14 +530,24 @@ onUnmounted(() => {
           :class="`gallery__item--${index}`"
           ref="galleryImages"
         >
-          <div class="gallery__item-inner">
-            <!-- First image eager, rest lazy (#3); explicit dimensions for CLS (#4) -->
+          <!-- Gallery items are now clickable → contact (#7) -->
+          <div
+            class="gallery__item-inner"
+            role="button"
+            tabindex="0"
+            :aria-label="`${t(`gallery.projects.${index}.title`)} — ${t('gallery.view_project')}`"
+            @click="scrollTo('#contact')"
+            @keydown.enter="scrollTo('#contact')"
+            @keydown.space.prevent="scrollTo('#contact')"
+          >
+            <!-- First image eager, rest lazy (#3); dimensions for CLS (#4); decoding (#12) -->
             <img
               :src="item.img"
               :alt="t(`gallery.projects.${index}.title`)"
               :loading="index === 0 ? 'eager' : 'lazy'"
               :width="item.width"
               :height="item.height"
+              decoding="async"
             />
             <div class="gallery__overlay">
               <div class="gallery__overlay-content">
@@ -506,8 +564,8 @@ onUnmounted(() => {
       </div>
     </section>
 
-    <!-- CONTACT SECTION -->
-    <section ref="contactSection" class="contact" id="contact">
+    <!-- CONTACT SECTION (#9 aria-label) -->
+    <section class="contact" id="contact" :aria-label="t('contact.title')">
       <div class="contact__container">
         <div class="contact__header">
           <h2 class="reveal-text">{{ t('contact.title') }}</h2>
@@ -527,7 +585,6 @@ onUnmounted(() => {
         </div>
         <div class="footer__right">
           <div class="footer__links">
-            <!-- Placeholder links disabled until real pages exist (#15) -->
             <a href="#" class="footer__link--placeholder" aria-disabled="true" tabindex="-1">{{ t('footer.privacy') }}</a>
             <a href="#" class="footer__link--placeholder" aria-disabled="true" tabindex="-1">{{ t('footer.terms') }}</a>
           </div>
@@ -556,7 +613,7 @@ onUnmounted(() => {
   padding: 0;
 }
 
-/* Global focus ring (#6) */
+/* Global focus ring */
 :focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 3px;
@@ -571,13 +628,10 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 
-  &.has-smooth-scrolling {
-    overflow: hidden;
-  }
+  &.has-smooth-scrolling { overflow: hidden; }
 }
 
 html.lenis { height: auto; }
-
 .lenis.lenis-smooth { scroll-behavior: auto; }
 .lenis.lenis-smooth [data-lenis-prevent] { overscroll-behavior: contain; }
 .lenis.lenis-stopped { overflow: hidden; }
@@ -590,7 +644,7 @@ html.lenis { height: auto; }
 }
 
 /* =========================================================================
-   PRELOADER (#17)
+   PRELOADER
    ========================================================================= */
 .preloader {
   position: fixed;
@@ -601,29 +655,139 @@ html.lenis { height: auto; }
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 1.5rem;
+  gap: 1.25rem;
   pointer-events: none;
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23n)'/%3E%3C/svg%3E");
+    opacity: 0.04;
+    pointer-events: none;
+  }
 }
 
-.preloader__dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--color-accent);
-  box-shadow: 0 0 20px var(--color-accent), 0 0 40px rgba(0, 255, 204, 0.3);
-  animation: pulse-dot 1.2s ease-in-out infinite;
+.preloader__ring-wrap {
+  position: relative;
+  width: 110px;
+  height: 110px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: preloader-pop 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) 0.05s both;
 }
 
-.preloader__text {
-  font-size: 0.7rem;
+.preloader__ring {
+  position: absolute;
+  inset: 0;
+  transform: rotate(-90deg);
+  overflow: visible;
+}
+
+.preloader__ring-track {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.05);
+  stroke-width: 1.2;
+}
+
+.preloader__ring-fill {
+  fill: none;
+  stroke: url(#plGradient);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-dasharray: 238.76;
+  stroke-dashoffset: 238.76;
+  filter: drop-shadow(0 0 5px #00ffcc) drop-shadow(0 0 14px rgba(0, 255, 204, 0.45));
+  animation: preloader-ring 0.75s cubic-bezier(0.4, 0, 0.2, 1) 0.15s forwards;
+}
+
+@keyframes preloader-ring {
+  to { stroke-dashoffset: 0; }
+}
+
+.preloader__mark {
+  position: relative;
+  z-index: 1;
+  font-family: var(--font-primary);
+  font-size: 1.15rem;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  background: linear-gradient(135deg, #fff 40%, rgba(0, 255, 204, 0.85) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: preloader-mark 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) 0.4s both;
+}
+
+@keyframes preloader-mark {
+  from { opacity: 0; transform: scale(0.5); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.preloader__name {
+  font-size: 0.62rem;
   font-weight: 800;
-  letter-spacing: 0.45em;
-  color: rgba(255, 255, 255, 0.3);
+  letter-spacing: 0.55em;
   text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.6);
+  animation: preloader-rise 0.5s ease 0.35s both;
+  margin-right: -0.55em;
 }
 
-.preloader-fade-leave-active { transition: opacity 0.5s ease; }
-.preloader-fade-leave-to     { opacity: 0; }
+.preloader__sub {
+  font-size: 0.5rem;
+  font-weight: 400;
+  letter-spacing: 0.35em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.18);
+  animation: preloader-rise 0.5s ease 0.45s both;
+  margin-right: -0.35em;
+}
+
+@keyframes preloader-pop {
+  from { opacity: 0; transform: scale(0.85); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes preloader-rise {
+  from { opacity: 0; transform: translateY(7px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.preloader-fade-leave-active {
+  transition: opacity 0.6s ease, transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.preloader-fade-leave-to { opacity: 0; transform: scale(1.03); }
+
+/* =========================================================================
+   PREFERS-REDUCED-MOTION (#8)
+   ========================================================================= */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .preloader { display: none; }
+
+  .char {
+    transform: none !important;
+    opacity: 1 !important;
+  }
+
+  .reveal-text {
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
+
+  .gallery__item {
+    clip-path: none !important;
+  }
+}
 
 /* =========================================================================
    NAVIGATION
@@ -647,10 +811,7 @@ html.lenis { height: auto; }
   -webkit-backdrop-filter: blur(28px) saturate(180%);
   border: 1px solid rgba(255, 255, 255, 0.07);
   border-radius: 100px;
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.06),
-    0 8px 32px rgba(0,0,0,0.5),
-    0 0 0 0 rgba(0,255,204,0);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 8px 32px rgba(0,0,0,0.5);
   transition: all 0.5s cubic-bezier(0.25, 1, 0.5, 1);
   will-change: transform, width, box-shadow;
 
@@ -659,10 +820,7 @@ html.lenis { height: auto; }
     background: rgba(4, 4, 4, 0.85);
     width: 84%;
     border-color: rgba(0, 255, 204, 0.14);
-    box-shadow:
-      inset 0 1px 0 rgba(0,255,204,0.06),
-      0 16px 48px rgba(0,0,0,0.7),
-      0 0 60px rgba(0,255,204,0.03);
+    box-shadow: inset 0 1px 0 rgba(0,255,204,0.06), 0 16px 48px rgba(0,0,0,0.7), 0 0 60px rgba(0,255,204,0.03);
   }
 
   &__container {
@@ -711,7 +869,6 @@ html.lenis { height: auto; }
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.18em;
-      /* Raised from 0.38 to 0.55 for WCAG AA compliance (#9) */
       color: rgba(255, 255, 255, 0.55);
       text-decoration: none;
       border-radius: 100px;
@@ -734,7 +891,12 @@ html.lenis { height: auto; }
       &:hover {
         color: #fff;
         background: rgba(255, 255, 255, 0.05);
+        &::after { transform: translateX(-50%) scale(1); }
+      }
 
+      /* Active section indicator (#5) */
+      &.is-active {
+        color: #fff;
         &::after { transform: translateX(-50%) scale(1); }
       }
     }
@@ -782,7 +944,7 @@ html.lenis { height: auto; }
     &:active { transform: translateY(0); }
   }
 
-  /* Hamburger button (#2) */
+  /* Hamburger — 3 bars, animates to × (#4) */
   &__hamburger {
     display: none;
     flex-direction: column;
@@ -803,12 +965,22 @@ html.lenis { height: auto; }
       height: 1.5px;
       background: rgba(255, 255, 255, 0.65);
       border-radius: 1px;
-      transition: background 0.2s ease;
+      transition:
+        transform  0.35s cubic-bezier(0.25, 1, 0.5, 1),
+        opacity    0.2s ease,
+        background 0.2s ease;
     }
 
     &:hover {
       background: rgba(255, 255, 255, 0.06);
       span { background: #fff; }
+    }
+
+    /* × state */
+    &.is-open {
+      span:nth-child(1) { transform: translateY(6.5px) rotate(45deg); }
+      span:nth-child(2) { opacity: 0; transform: scaleX(0); }
+      span:nth-child(3) { transform: translateY(-6.5px) rotate(-45deg); }
     }
 
     @media (max-width: 768px) { display: flex; }
@@ -861,10 +1033,7 @@ html.lenis { height: auto; }
     transition: all 0.2s ease;
     line-height: 1;
 
-    &:hover:not(.lang-btn--active) {
-      color: rgba(255, 255, 255, 0.6);
-      background: rgba(255, 255, 255, 0.05);
-    }
+    &:hover:not(.lang-btn--active) { color: rgba(255, 255, 255, 0.6); background: rgba(255, 255, 255, 0.05); }
 
     &--active {
       background: rgba(0, 255, 204, 0.1);
@@ -880,7 +1049,7 @@ html.lenis { height: auto; }
 }
 
 /* =========================================================================
-   MOBILE MENU (#2)
+   MOBILE MENU
    ========================================================================= */
 .mobile-menu {
   position: fixed;
@@ -922,7 +1091,6 @@ html.lenis { height: auto; }
     border-radius: 8px;
     transition: color 0.2s ease, background 0.2s ease;
     line-height: 1;
-
     &:hover { color: #fff; background: rgba(255, 255, 255, 0.06); }
   }
 
@@ -937,7 +1105,8 @@ html.lenis { height: auto; }
     transition: color 0.25s ease;
     border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 
-    &:hover { color: var(--color-accent); }
+    &:hover   { color: var(--color-accent); }
+    &.is-active { color: var(--color-accent); } /* Active section in mobile (#5) */
   }
 
   &__lang {
@@ -953,15 +1122,10 @@ html.lenis { height: auto; }
 .mobile-menu-enter-from,
 .mobile-menu-leave-to      { opacity: 0; }
 
-.mobile-menu-enter-active .mobile-menu__content {
-  transition: transform 0.35s cubic-bezier(0.25, 1, 0.5, 1);
-}
-.mobile-menu-enter-from .mobile-menu__content { transform: translateX(100%); }
-
-.mobile-menu-leave-active .mobile-menu__content {
-  transition: transform 0.25s ease;
-}
-.mobile-menu-leave-to .mobile-menu__content { transform: translateX(100%); }
+.mobile-menu-enter-active .mobile-menu__content { transition: transform 0.35s cubic-bezier(0.25, 1, 0.5, 1); }
+.mobile-menu-enter-from   .mobile-menu__content { transform: translateX(100%); }
+.mobile-menu-leave-active .mobile-menu__content { transition: transform 0.25s ease; }
+.mobile-menu-leave-to     .mobile-menu__content { transform: translateX(100%); }
 
 /* =========================================================================
    CUSTOM CURSOR
@@ -995,19 +1159,12 @@ html.lenis { height: auto; }
 }
 
 .landing-page,
-.landing-page * {
-  cursor: none;
-}
+.landing-page * { cursor: none; }
 
 .landing-page input,
-.landing-page textarea {
-  cursor: text;
-}
+.landing-page textarea { cursor: text; }
 
-/* Restore visible cursor on keyboard focus (#6) */
-.landing-page *:focus-visible {
-  cursor: auto;
-}
+.landing-page *:focus-visible { cursor: auto; }
 
 .landing-page { width: 100%; }
 
@@ -1018,242 +1175,401 @@ html.lenis { height: auto; }
 }
 
 /* =========================================================================
-   HERO SECTION
+   HERO SECTION — IMMERSIVE REDESIGN
    ========================================================================= */
 .hero {
   position: relative;
-  height: 100vh;
+  height: 100svh;
   width: 100vw;
   overflow: hidden;
-  @include flex-center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #060412;
+  --mouse-x: 50%;
+  --mouse-y: 50%;
 
-  &__bg {
+  // ── Ambient canvas (blobs) ────────────────────────────────────────────────
+  &__canvas {
     position: absolute;
-    top: -10%;
-    left: -10%;
-    width: 120%;
-    height: 120%;
-    background:
-      radial-gradient(ellipse at 20% 20%, rgba(130, 80, 255, 1)     0%, transparent 42%),
-      radial-gradient(ellipse at 75% 10%, rgba(60,  150, 255, 1)     0%, transparent 40%),
-      radial-gradient(ellipse at 50% 55%, rgba(255, 255, 255, 0.06)  0%, transparent 50%),
-      radial-gradient(ellipse at 58% 82%, rgba(0,   210, 255, 0.90)  0%, transparent 44%),
-      radial-gradient(ellipse at 10% 78%, rgba(200, 40,  255, 0.85)  0%, transparent 40%),
-      radial-gradient(ellipse at 88% 60%, rgba(90,  30,  230, 0.75)  0%, transparent 36%),
-      #10082e;
+    inset: 0;
     z-index: 0;
-    will-change: transform;
+    overflow: hidden;
   }
 
-  &::after {
-    content: '';
+  &__blob {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(110px);
+    will-change: transform;
+    pointer-events: none;
+
+    &--cyan {
+      width: 60vw; height: 60vw;
+      top: -18%; left: -12%;
+      background: radial-gradient(circle, rgba(0, 255, 204, 0.22) 0%, transparent 68%);
+    }
+
+    &--violet {
+      width: 48vw; height: 48vw;
+      top: -8%; right: -8%;
+      background: radial-gradient(circle, rgba(100, 30, 255, 0.30) 0%, transparent 68%);
+    }
+
+    &--rose {
+      width: 44vw; height: 44vw;
+      bottom: 2%; left: 20%;
+      background: radial-gradient(circle, rgba(220, 20, 150, 0.22) 0%, transparent 68%);
+    }
+  }
+
+  // ── Mouse-tracking spotlight ──────────────────────────────────────────────
+  &__spotlight {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background: radial-gradient(
+      700px circle at var(--mouse-x) var(--mouse-y),
+      rgba(0, 255, 204, 0.055) 0%,
+      transparent 55%
+    );
+    pointer-events: none;
+    transition: background 0.08s linear;
+  }
+
+  // ── Perspective grid ──────────────────────────────────────────────────────
+  &__grid {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    background-image:
+      linear-gradient(rgba(255, 255, 255, 0.022) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.022) 1px, transparent 1px);
+    background-size: 80px 80px;
+    mask-image: radial-gradient(ellipse 80% 65% at 50% 50%, rgba(0,0,0,0.7), transparent);
+    -webkit-mask-image: radial-gradient(ellipse 80% 65% at 50% 50%, rgba(0,0,0,0.7), transparent);
+    pointer-events: none;
+  }
+
+  // ── Edge vignette + grain ─────────────────────────────────────────────────
+  &__vignette {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    background: radial-gradient(ellipse 110% 110% at 50% 50%, transparent 28%, #060412 100%);
+    pointer-events: none;
+  }
+
+  &__grain {
     position: absolute;
     inset: 0;
     z-index: 3;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)'/%3E%3C/svg%3E");
+    opacity: 0.038;
     pointer-events: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23n)'/%3E%3C/svg%3E");
-    opacity: 0.055;
   }
 
-  &__overlay {
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(180deg, rgba(16, 8, 46, 0.0) 0%, rgba(16, 8, 46, 0.22) 50%, rgba(16, 8, 46, 0.97) 100%);
-    z-index: 1;
-  }
-
-  &__content {
-    text-align: center;
+  // ── Main stage ────────────────────────────────────────────────────────────
+  &__stage {
     position: relative;
     z-index: 10;
-    padding: 0 5vw;
-  }
-
-  &__title {
-    font-size: clamp(3rem, 10vw, 9rem);
-    font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: -0.04em;
-    line-height: 1;
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 0.25em;
-
-    .word {
-      display: inline-flex;
-      overflow: hidden;
-    }
-
-    .char {
-      display: inline-block;
-      will-change: transform, opacity;
-      transform: translateY(100%);
-      background: linear-gradient(to bottom, #ffffff 40%, rgba(255, 255, 255, 0.5) 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-  }
-
-  &__subtitle {
-    margin-top: 1.5rem;
-    font-size: clamp(1rem, 2vw, 1.5rem);
-    font-weight: 300;
-    letter-spacing: 0.2em;
-    color: rgba(255, 255, 255, 0.6);
-    text-transform: uppercase;
-    margin-bottom: 3rem;
-  }
-
-  &__ctas {
-    display: flex;
-    justify-content: center;
-    gap: 1.5rem;
-
-    @media (max-width: 640px) {
-      flex-direction: column;
-      align-items: center;
-      gap: 1rem;
-    }
-
-    .btn {
-      padding: 1.2rem 3rem;
-      border-radius: 100px;
-      font-size: 1rem;
-      font-weight: 600;
-      cursor: pointer;
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-      transition: all 0.3s cubic-bezier(0.25, 1, 0.5, 1);
-      position: relative;
-      overflow: hidden;
-
-      &--primary {
-        background: #fff;
-        color: #000;
-        border: none;
-
-        span { position: relative; z-index: 2; }
-
-        .btn-glow {
-          position: absolute;
-          inset: 0;
-          background: var(--color-accent-gradient);
-          opacity: 0;
-          transition: opacity 0.3s ease;
-          z-index: 1;
-        }
-
-        &:hover {
-          transform: translateY(-5px);
-          .btn-glow { opacity: 1; }
-        }
-      }
-
-      &--secondary {
-        background: transparent;
-        color: #fff;
-        border: 1px solid rgba(255, 255, 255, 0.2);
-
-        &:hover {
-          background: rgba(255, 255, 255, 0.05);
-          border-color: #fff;
-          transform: translateY(-5px);
-        }
-      }
-    }
-  }
-
-  .scroll-indicator {
-    position: absolute;
-    bottom: 7rem;
-    left: 50%;
-    transform: translateX(-50%);
+    text-align: center;
+    padding: 0 clamp(1.5rem, 5vw, 5rem);
     display: flex;
     flex-direction: column;
     align-items: center;
-    z-index: 15;
+    gap: 1.6rem;
+    width: 100%;
+  }
 
-    @media (max-width: 768px) { display: none; }
+  // ── Eyebrow ───────────────────────────────────────────────────────────────
+  &__eyebrow {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.32em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.28);
 
-    &__line {
-      width: 1px;
-      height: 64px;
-      background: rgba(255, 255, 255, 0.08);
-      position: relative;
-      overflow: hidden;
-      border-radius: 1px;
+    &-tag { color: rgba(0, 255, 204, 0.75); }
+    &-sep { opacity: 0.25; }
+  }
+
+  // ── Title ─────────────────────────────────────────────────────────────────
+  &__title {
+    font-size: clamp(4rem, 14vw, 14rem);
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: -0.05em;
+    line-height: 0.88;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.1em;
+  }
+
+  &__word {
+    display: inline-flex;
+    overflow: hidden;
+  }
+
+  .char {
+    display: inline-block;
+    will-change: transform, opacity;
+    transform: translateY(110%);
+    background: linear-gradient(
+      162deg,
+      #ffffff 0%,
+      rgba(255, 255, 255, 0.78) 50%,
+      rgba(190, 165, 255, 0.52) 100%
+    );
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  // ── Descriptor ────────────────────────────────────────────────────────────
+  &__descriptor {
+    font-size: clamp(0.95rem, 1.5vw, 1.3rem);
+    font-weight: 300;
+    letter-spacing: 0.04em;
+    color: rgba(255, 255, 255, 0.42);
+    max-width: 460px;
+    line-height: 1.65;
+  }
+
+  // ── Ticker / marquee ──────────────────────────────────────────────────────
+  &__ticker {
+    width: 100%;
+    max-width: 640px;
+    overflow: hidden;
+    mask-image: linear-gradient(90deg, transparent 0%, #000 10%, #000 90%, transparent 100%);
+    -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 10%, #000 90%, transparent 100%);
+    height: 1.4em;
+  }
+
+  &__ticker-track {
+    display: inline-flex;
+    white-space: nowrap;
+    animation: hero-ticker 20s linear infinite;
+
+    span {
+      font-size: 0.65rem;
+      font-weight: 600;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.18);
+    }
+  }
+
+  @keyframes hero-ticker {
+    from { transform: translateX(0); }
+    to   { transform: translateX(-50%); }
+  }
+
+  // ── CTAs ──────────────────────────────────────────────────────────────────
+  &__actions {
+    display: flex;
+    align-items: center;
+    gap: 2.2rem;
+    margin-top: 0.4rem;
+
+    @media (max-width: 520px) { flex-direction: column; gap: 1.25rem; }
+  }
+
+  &__cta-primary {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 1.05rem 2.2rem;
+    background: #fff;
+    color: #060412;
+    border: none;
+    border-radius: 100px;
+    font-family: inherit;
+    font-size: 0.85rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: transform 0.35s cubic-bezier(0.25, 1, 0.5, 1), box-shadow 0.35s ease;
+    overflow: hidden;
+
+    &::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, #00ffcc 0%, #a060ff 100%);
+      opacity: 0;
+      transition: opacity 0.35s ease;
+      border-radius: inherit;
     }
 
-    &__drop {
+    span, .hero__cta-icon { position: relative; z-index: 1; }
+
+    .hero__cta-icon {
+      display: inline-block;
+      font-size: 0.9em;
+      transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    &:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 0 0 1px rgba(255,255,255,0.08), 0 14px 40px rgba(0,255,204,0.22);
+      &::before { opacity: 1; }
+      .hero__cta-icon { transform: translate(3px, -3px); }
+    }
+
+    &:active { transform: translateY(0); }
+  }
+
+  &__cta-ghost {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    background: transparent;
+    border: none;
+    font-family: inherit;
+    font-size: 0.85rem;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    color: rgba(255, 255, 255, 0.5);
+    cursor: pointer;
+    padding: 0.3rem 0;
+    transition: color 0.25s ease;
+
+    .hero__cta-line {
       position: absolute;
-      top: 0;
+      bottom: 0;
       left: 0;
       width: 100%;
-      height: 40%;
-      background: linear-gradient(to bottom, var(--color-accent), transparent);
-      animation: scroll-drop 2.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+      height: 1px;
+      background: rgba(255, 255, 255, 0.12);
+      transition: background 0.25s ease;
+    }
+
+    &:hover {
+      color: rgba(255, 255, 255, 0.88);
+      .hero__cta-line { background: var(--color-accent); }
     }
   }
 
-  @keyframes scroll-drop {
-    0%   { top: -40%; opacity: 1; }
-    80%  { opacity: 0.6; }
-    100% { top: 120%; opacity: 0; }
-  }
-
-  &__infobar {
+  // ── Bottom strip ──────────────────────────────────────────────────────────
+  &__bottom {
     position: absolute;
     bottom: 0;
     left: 0;
     width: 100%;
-    padding: 2.5rem 5vw;
+    padding: 2rem 5vw 2.2rem;
+    z-index: 20;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    background: linear-gradient(to top, rgba(6, 4, 18, 0.92) 0%, rgba(6, 4, 18, 0.5) 55%, transparent 100%);
+    border-top: 1px solid rgba(255, 255, 255, 0.035);
+
+    @media (max-width: 600px) {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 1.5rem;
+      padding: 1.5rem 5vw 1.75rem;
+    }
+  }
+
+  &__stats {
+    display: flex;
+    align-items: center;
+    gap: clamp(1.5rem, 4vw, 3rem);
+  }
+
+  &__stat {
+    display: flex;
+    flex-direction: column;
+    gap: 0.28rem;
+  }
+
+  &__stat-num {
+    font-size: clamp(1.65rem, 3.2vw, 2.4rem);
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    color: #fff;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+
+    sup {
+      font-size: 0.5em;
+      font-weight: 600;
+      opacity: 0.55;
+      vertical-align: super;
+    }
+  }
+
+  &__stat-lbl {
+    font-size: 0.6rem;
+    font-weight: 400;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.28);
+  }
+
+  &__stat-sep {
+    width: 1px;
+    height: 2.8rem;
+    background: rgba(255, 255, 255, 0.07);
+    flex-shrink: 0;
+  }
+
+  // ── Scroll badge (mouse / wheel) ──────────────────────────────────────────
+  &__scroll-badge {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.55rem;
+
+    @media (max-width: 600px) { display: none; }
+  }
+
+  &__scroll-ring {
     display: flex;
     justify-content: center;
-    gap: clamp(2rem, 10vw, 8rem);
-    background: linear-gradient(to top, rgba(5, 5, 5, 0.8), transparent);
-    border-top: 1px solid rgba(255, 255, 255, 0.05);
-    backdrop-filter: blur(10px);
-    z-index: 20;
+    padding-top: 7px;
+    width: 32px;
+    height: 52px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+  }
 
-    @media (max-width: 768px) {
-      flex-wrap: wrap;
-      gap: 2rem;
-      padding: 1.5rem 5vw;
-    }
+  &__scroll-bead {
+    display: block;
+    width: 4px;
+    height: 10px;
+    background: var(--color-accent);
+    border-radius: 2px;
+    box-shadow: 0 0 8px rgba(0, 255, 204, 0.65);
+    animation: scroll-bead 2.5s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+  }
 
-    .info-item {
-      display: flex;
-      flex-direction: column;
-      gap: 0.4rem;
-      text-align: left;
+  @keyframes scroll-bead {
+    0%   { transform: translateY(0);    opacity: 1; }
+    65%  { transform: translateY(22px); opacity: 0.4; }
+    100% { transform: translateY(0);    opacity: 1; }
+  }
 
-      .label {
-        font-size: 0.7rem;
-        text-transform: uppercase;
-        letter-spacing: 0.2em;
-        color: rgba(255, 255, 255, 0.4);
-      }
-
-      .value {
-        font-size: 1.1rem;
-        font-weight: 700;
-        color: #fff;
-        letter-spacing: 0.05em;
-        font-variant-numeric: tabular-nums;
-      }
-
-      .stat-plus {
-        font-size: 0.85em;
-        opacity: 0.7;
-      }
-    }
+  &__scroll-text {
+    font-size: 0.52rem;
+    font-weight: 600;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.18);
   }
 }
 
 /* =========================================================================
-   PROCESS SECTION (PINNED HORIZONTAL SCROLL)
+   PROCESS SECTION
    ========================================================================= */
 .process {
   min-height: 100vh;
@@ -1320,9 +1636,7 @@ html.lenis { height: auto; }
     overflow: hidden;
     position: relative;
     box-shadow: 0 40px 80px rgba(0, 0, 0, 0.6);
-    transition:
-      transform   0.45s cubic-bezier(0.25, 1, 0.5, 1),
-      box-shadow  0.45s cubic-bezier(0.25, 1, 0.5, 1);
+    transition: transform 0.45s cubic-bezier(0.25, 1, 0.5, 1), box-shadow 0.45s cubic-bezier(0.25, 1, 0.5, 1);
 
     &::before {
       content: '';
@@ -1356,11 +1670,7 @@ html.lenis { height: auto; }
       .process-card__tag { border-color: rgba(255, 255, 255, 0.12); color: rgba(255, 255, 255, 0.5); }
     }
 
-    /* Keyboard focus highlight (#10) */
-    &:focus-visible {
-      outline: 2px solid var(--color-accent);
-      outline-offset: 4px;
-    }
+    &:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 4px; }
 
     &__inner {
       height: 100%;
@@ -1518,10 +1828,7 @@ html.lenis { height: auto; }
 
     .arrow { display: inline-block; transition: transform 0.3s ease; }
 
-    &:hover {
-      color: var(--color-accent);
-      .arrow { transform: translate(3px, -3px); }
-    }
+    &:hover { color: var(--color-accent); .arrow { transform: translate(3px, -3px); } }
   }
 
   &__grid {
@@ -1569,6 +1876,13 @@ html.lenis { height: auto; }
     &:hover img { transform: scale(1.14); }
     &:hover .gallery__overlay-content { transform: translateY(0); opacity: 1; }
     &:hover .gallery__index { opacity: 0; }
+
+    /* Keyboard focus */
+    &:focus-visible {
+      outline: 2px solid var(--color-accent);
+      outline-offset: 3px;
+      border-radius: 12px;
+    }
   }
 
   &__overlay {
@@ -1579,6 +1893,7 @@ html.lenis { height: auto; }
     align-items: flex-end;
     padding: 1.75rem;
     z-index: 2;
+    pointer-events: none;
   }
 
   &__overlay-content {
@@ -1694,16 +2009,13 @@ html.lenis { height: auto; }
       text-decoration: none;
       color: rgba(255, 255, 255, 0.3);
       transition: color 0.3s ease;
-
       &:hover { color: var(--color-accent); }
     }
   }
 
-  /* Placeholder links (#15) */
   &__link--placeholder {
     opacity: 0.4;
     pointer-events: none;
-
     &:hover { color: rgba(255, 255, 255, 0.3) !important; }
   }
 }

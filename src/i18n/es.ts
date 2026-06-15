@@ -1,4 +1,7 @@
 export default {
+  meta: {
+    title: 'V-Studios Demo | Agencia Web Creativa',
+  },
   nav: {
     approach: 'Enfoque',
     gallery: 'Galería',
@@ -52,6 +55,7 @@ export default {
     title_accent: 'Inmersiva',
     count: '{count} proyectos',
     view_all: 'Ver todo',
+    view_project: 'Iniciar un proyecto similar',
     projects: [
       { title: 'Maison Alvarez', category: 'Branding & Web' },
       { title: 'Opia Health', category: 'Diseño UI/UX' },
@@ -88,6 +92,7 @@ export default {
     form_next: 'Continuar',
     form_back: 'Volver',
     form_submit: 'Enviar mi solicitud',
+    form_reset: 'Enviar otra solicitud',
     error_required: 'Campo requerido',
     error_email: 'Email inválido',
     error_step2: 'Por favor selecciona un tipo y un presupuesto',

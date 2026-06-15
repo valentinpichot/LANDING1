@@ -13,6 +13,15 @@ const step = ref(1);
 const stepDirection = ref<'forward' | 'back'>('forward');
 
 const form = ref({ name: '', email: '', projectType: '', budget: '', message: '' });
+
+function resetForm() {
+  form.value = { name: '', email: '', projectType: '', budget: '', message: '' };
+  step.value = 1;
+  stepDirection.value = 'forward';
+  submitState.value = 'idle';
+  fieldErrors.value = { name: false, email: false };
+  stepTwoError.value = false;
+}
 const fieldErrors = ref({ name: false, email: false });
 const stepTwoError = ref(false);
 const isSubmitting = ref(false);
@@ -93,7 +102,7 @@ async function submit() {
     <div class="contact__info">
       <div class="info-block">
         <span class="info-label reveal-text">{{ t('contact.email_label') }}</span>
-        <a href="mailto:hello@v-studios.demo" class="info-value reveal-text">hello@v-studios.demo</a>
+        <a href="mailto:hello@vstudios.io" class="info-value reveal-text">hello@vstudios.io</a>
       </div>
       <div class="info-block">
         <span class="info-label reveal-text">{{ t('contact.location_label') }}</span>
@@ -124,6 +133,9 @@ async function submit() {
           </div>
           <h3>{{ t('contact.success_title') }}</h3>
           <p>{{ t('contact.success_text') }}</p>
+          <button class="btn-reset" type="button" @click="resetForm">
+            {{ t('contact.form_reset') }}
+          </button>
         </div>
 
         <div v-else class="form-inner">
@@ -739,6 +751,27 @@ async function submit() {
 @keyframes success-pop {
   from { transform: scale(0.4); opacity: 0; }
   to   { transform: scale(1);   opacity: 1; }
+}
+
+.btn-reset {
+  margin-top: 0.5rem;
+  padding: 0.6rem 1.5rem;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 100px;
+  color: rgba(255, 255, 255, 0.45);
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  transition: all 0.25s ease;
+
+  &:hover {
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+  }
 }
 
 /* ── Transitions ─────────────────────────────────────────────────── */

@@ -186,7 +186,7 @@ onMounted(() => {
           // gsap.set hides chars right before the animation — NOT in CSS —
           // so Lighthouse sees natural text position for LCP measurement.
           gsap.set(letters, { y: '110%', opacity: 0 });
-          tl.to(letters, { y: '0%', opacity: 1, duration: 1.3, stagger: 0.03, ease: 'power4.out', delay: 0.1 })
+          tl.to(letters, { y: '0%', opacity: 1, duration: 1.3, stagger: 0.03, ease: 'power4.out', delay: 0.3 })
             .from('.hero__eyebrow', { y: 12, autoAlpha: 0, duration: 0.7, ease: 'power3.out' }, 0.3)
             .from('.hero__descriptor', { y: 16, autoAlpha: 0, duration: 0.8, ease: 'power3.out' }, '-=0.5')
             .from('.hero__ticker', { autoAlpha: 0, duration: 0.6, ease: 'power2.out' }, '-=0.4');

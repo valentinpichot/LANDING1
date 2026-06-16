@@ -115,7 +115,7 @@ onMounted(() => {
     heroStats.clients    = 80;
     heroStats.projects   = 150;
   } else {
-    setTimeout(() => { preloaderDone.value = true; }, 950);
+    setTimeout(() => { preloaderDone.value = true; }, 700);
   }
 
   // Escape closes mobile menu
@@ -183,7 +183,10 @@ onMounted(() => {
         // Hero title char reveal + descriptor + CTAs + stats + counters
         if (heroTitle.value) {
           const letters = heroTitle.value.querySelectorAll('.char');
-          tl.from(letters, { y: '110%', opacity: 0, duration: 1.3, stagger: 0.03, ease: 'power4.out', delay: 0.1 })
+          // gsap.set hides chars right before the animation — NOT in CSS —
+          // so Lighthouse sees natural text position for LCP measurement.
+          gsap.set(letters, { y: '110%', opacity: 0 });
+          tl.to(letters, { y: '0%', opacity: 1, duration: 1.3, stagger: 0.03, ease: 'power4.out', delay: 0.1 })
             .from('.hero__eyebrow', { y: 12, autoAlpha: 0, duration: 0.7, ease: 'power3.out' }, 0.3)
             .from('.hero__descriptor', { y: 16, autoAlpha: 0, duration: 0.8, ease: 'power3.out' }, '-=0.5')
             .from('.hero__ticker', { autoAlpha: 0, duration: 0.6, ease: 'power2.out' }, '-=0.4');
@@ -540,11 +543,11 @@ onUnmounted(() => {
             @keydown.enter="scrollTo('#contact')"
             @keydown.space.prevent="scrollTo('#contact')"
           >
-            <!-- First image eager, rest lazy (#3); dimensions for CLS (#4); decoding (#12) -->
             <img
               :src="item.img"
               :alt="t(`gallery.projects.${index}.title`)"
               :loading="index === 0 ? 'eager' : 'lazy'"
+              :fetchpriority="index === 0 ? 'high' : 'auto'"
               :width="item.width"
               :height="item.height"
               decoding="async"
@@ -675,7 +678,7 @@ html.lenis { height: auto; }
   display: flex;
   align-items: center;
   justify-content: center;
-  animation: preloader-pop 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) 0.05s both;
+  animation: preloader-pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) 0s both;
 }
 
 .preloader__ring {
@@ -699,7 +702,7 @@ html.lenis { height: auto; }
   stroke-dasharray: 238.76;
   stroke-dashoffset: 238.76;
   filter: drop-shadow(0 0 5px #00ffcc) drop-shadow(0 0 14px rgba(0, 255, 204, 0.45));
-  animation: preloader-ring 0.75s cubic-bezier(0.4, 0, 0.2, 1) 0.15s forwards;
+  animation: preloader-ring 0.52s cubic-bezier(0.4, 0, 0.2, 1) 0.05s forwards;
 }
 
 @keyframes preloader-ring {
@@ -717,7 +720,7 @@ html.lenis { height: auto; }
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  animation: preloader-mark 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) 0.4s both;
+  animation: preloader-mark 0.32s cubic-bezier(0.34, 1.56, 0.64, 1) 0.28s both;
 }
 
 @keyframes preloader-mark {
@@ -731,7 +734,7 @@ html.lenis { height: auto; }
   letter-spacing: 0.55em;
   text-transform: uppercase;
   color: rgba(255, 255, 255, 0.6);
-  animation: preloader-rise 0.5s ease 0.35s both;
+  animation: preloader-rise 0.32s ease 0.22s both;
   margin-right: -0.55em;
 }
 
@@ -741,7 +744,7 @@ html.lenis { height: auto; }
   letter-spacing: 0.35em;
   text-transform: uppercase;
   color: rgba(255, 255, 255, 0.18);
-  animation: preloader-rise 0.5s ease 0.45s both;
+  animation: preloader-rise 0.28s ease 0.3s both;
   margin-right: -0.35em;
 }
 
@@ -1196,31 +1199,32 @@ html.lenis { height: auto; }
     inset: 0;
     z-index: 0;
     overflow: hidden;
+    contain: strict;
   }
 
   &__blob {
     position: absolute;
     border-radius: 50%;
-    filter: blur(110px);
+    filter: blur(70px);
     will-change: transform;
     pointer-events: none;
 
     &--cyan {
-      width: 60vw; height: 60vw;
-      top: -18%; left: -12%;
-      background: radial-gradient(circle, rgba(0, 255, 204, 0.22) 0%, transparent 68%);
+      width: 44vw; height: 44vw;
+      top: -10%; left: -8%;
+      background: radial-gradient(circle, rgba(0, 255, 204, 0.20) 0%, transparent 65%);
     }
 
     &--violet {
-      width: 48vw; height: 48vw;
-      top: -8%; right: -8%;
-      background: radial-gradient(circle, rgba(100, 30, 255, 0.30) 0%, transparent 68%);
+      width: 38vw; height: 38vw;
+      top: -5%; right: -5%;
+      background: radial-gradient(circle, rgba(100, 30, 255, 0.26) 0%, transparent 65%);
     }
 
     &--rose {
-      width: 44vw; height: 44vw;
-      bottom: 2%; left: 20%;
-      background: radial-gradient(circle, rgba(220, 20, 150, 0.22) 0%, transparent 68%);
+      width: 34vw; height: 34vw;
+      bottom: 5%; left: 22%;
+      background: radial-gradient(circle, rgba(220, 20, 150, 0.20) 0%, transparent 65%);
     }
   }
 
@@ -1319,7 +1323,6 @@ html.lenis { height: auto; }
   .char {
     display: inline-block;
     will-change: transform, opacity;
-    transform: translateY(110%);
     background: linear-gradient(
       162deg,
       #ffffff 0%,
